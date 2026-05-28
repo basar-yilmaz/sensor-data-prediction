@@ -9,8 +9,9 @@ from pathlib import Path
 import pandas as pd
 import pytorch_lightning as pl
 import requests
+import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
@@ -18,8 +19,47 @@ from bfrb_sensors.data.download import download_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
 from bfrb_sensors.training.metrics import HierarchyMapping
 from bfrb_sensors.training.module import BFRBClassificationModule
+from bfrb_sensors.training.plots import write_training_plots
 
 logger = logging.getLogger(__name__)
+
+_HISTORY_KEYS = (
+    "train_loss",
+    "val_loss",
+    "val_accuracy",
+    "val_macro_f1_18",
+    "val_binary_f1",
+    "val_macro_f1_collapsed",
+    "val_hierarchical_f1",
+)
+
+
+class MetricsHistory(Callback):
+    """Record epoch-level metrics so we can plot training curves after fit."""
+
+    def __init__(self) -> None:
+        self.history: dict[str, list[float]] = {key: [] for key in _HISTORY_KEYS}
+
+    def on_validation_epoch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if trainer.sanity_checking:
+            return
+        metrics = trainer.callback_metrics
+        for key in _HISTORY_KEYS:
+            value = metrics.get(key)
+            if value is not None:
+                self.history[key].append(float(value))
+
+
+@torch.no_grad()
+def _collect_val_predictions(module: pl.LightningModule, dataloader) -> tuple[list[int], list[int]]:
+    module.eval()
+    y_true: list[int] = []
+    y_pred: list[int] = []
+    for batch in dataloader:
+        logits = module(batch)
+        y_pred.extend(logits.argmax(dim=1).tolist())
+        y_true.extend(batch["label"].tolist())
+    return y_true, y_pred
 
 
 def check_mlflow_server(uri: str) -> None:
@@ -107,6 +147,7 @@ def train_from_config(cfg: DictConfig) -> None:
         mode=str(cfg.training.monitor_mode),
     )
 
+    history = MetricsHistory()
     trainer = pl.Trainer(
         max_epochs=int(cfg.training.max_epochs),
         accelerator=str(cfg.training.accelerator),
@@ -114,9 +155,36 @@ def train_from_config(cfg: DictConfig) -> None:
         precision=cfg.training.precision,
         overfit_batches=float(cfg.training.overfit_batches),
         logger=mlf_logger,
-        callbacks=[checkpoint],
+        callbacks=[checkpoint, history],
         deterministic=True,
     )
     logger.info("Starting training for %d epochs", int(cfg.training.max_epochs))
     trainer.fit(module, datamodule=dm)
     logger.info("Training complete; best checkpoint: %s", checkpoint.best_model_path)
+
+    _log_artifacts(cfg, mlf_logger, module, dm, history)
+
+
+def _log_artifacts(
+    cfg: DictConfig,
+    mlf_logger: MLFlowLogger,
+    module: pl.LightningModule,
+    dm: BFRBDataModule,
+    history: MetricsHistory,
+) -> None:
+    plots_dir = Path(cfg.training.plots_dir)
+    y_true, y_pred = _collect_val_predictions(module.to("cpu"), dm.val_dataloader())
+    if not y_true:
+        logger.warning("No validation samples available; skipping plot generation")
+        return
+
+    paths = write_training_plots(plots_dir, history.history, y_true=y_true, y_pred=y_pred)
+    repo_root = Path(__file__).resolve().parents[2]
+    dvc_lock = repo_root / "dvc.lock"
+    if dvc_lock.exists():
+        paths = [*paths, dvc_lock]
+
+    run_id = mlf_logger.run_id
+    for path in paths:
+        mlf_logger.experiment.log_artifact(run_id, str(path))
+        logger.info("Logged artifact to MLflow: %s", path)
