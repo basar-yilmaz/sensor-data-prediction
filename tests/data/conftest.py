@@ -26,15 +26,19 @@ class SyntheticSequenceSpec:
     has_thm: bool = True
     has_tof: bool = True
     nan_frac_imu: float = 0.0
+    orientation: str = "Seated Straight"
+    sequence_type: str = "Target"
 
 
 def _make_sequence(spec: SyntheticSequenceSpec, rng: np.random.Generator) -> pd.DataFrame:
     rows = spec.length
     data: dict[str, np.ndarray] = {}
     data["sequence_id"] = np.array([spec.sequence_id] * rows)
-    data["subject_id"] = np.array([spec.subject_id] * rows)
+    data["subject"] = np.array([spec.subject_id] * rows)
     data["gesture"] = np.array([spec.gesture] * rows)
-    data["step"] = np.arange(rows, dtype=np.int64)
+    data["sequence_counter"] = np.arange(rows, dtype=np.int64)
+    data["orientation"] = np.array([spec.orientation] * rows)
+    data["sequence_type"] = np.array([spec.sequence_type] * rows)
 
     imu = rng.standard_normal((rows, len(IMU_COLS))).astype(np.float64)
     if spec.nan_frac_imu > 0:

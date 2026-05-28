@@ -11,7 +11,14 @@ def test_synthetic_csv_has_expected_columns(synthetic_raw_csv, default_specs):
     csv_path = synthetic_raw_csv(default_specs)
     df = pd.read_csv(csv_path)
 
-    expected_meta = {"sequence_id", "subject_id", "gesture", "step"}
+    expected_meta = {
+        "sequence_id",
+        "subject",
+        "gesture",
+        "sequence_counter",
+        "orientation",
+        "sequence_type",
+    }
     assert expected_meta.issubset(df.columns)
     for col in IMU_COLS + THM_COLS:
         assert col in df.columns
