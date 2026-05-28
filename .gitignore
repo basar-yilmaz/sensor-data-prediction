@@ -79,7 +79,8 @@ venv.bak/
 Thumbs.db
 
 # DVC
-/data/raw
+# Raw data files are ignored per-file by data/raw/.gitignore (created by `dvc add`),
+# so the *.dvc pointers stay tracked. Generated outputs below are tracked via dvc.lock.
 /data/prepared
 /artifacts
 .dvc/cache
