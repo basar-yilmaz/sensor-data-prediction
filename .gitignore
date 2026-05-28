@@ -94,3 +94,17 @@ multirun/
 
 # Logs
 *.log
+
+# Local-only working files (planning notes, drafts, editor state)
+.claude/
+.aider*
+.cursor/
+.continue/
+.github/copilot-instructions.md
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+HANDOFF.md
+docs/
+MLOps_Task_Definitions.md
+Draft_Proposal_of_thesis_report.docx
