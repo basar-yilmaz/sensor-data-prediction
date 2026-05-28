@@ -1,0 +1,15 @@
+seed: 42
+fold: 0
+max_epochs: 10
+batch_size: 64
+num_workers: 4
+lr: 1.0e-3
+weight_decay: 1.0e-4
+accelerator: auto
+devices: auto
+precision: 32
+checkpoint_dir: artifacts/checkpoints
+plots_dir: plots
+overfit_batches: 0
+monitor: val_hierarchical_f1
+monitor_mode: max
