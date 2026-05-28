@@ -12,6 +12,13 @@ from bfrb_sensors.training.metrics import HierarchyMapping
 
 
 class BFRBClassificationModule(pl.LightningModule):
+    """Lightning module wrapping an injected classifier.
+
+    The model and hierarchy are excluded from saved hyperparameters, so
+    ``load_from_checkpoint`` must be called with ``model=build_model(cfg.model)``
+    and ``hierarchy=...`` supplied explicitly.
+    """
+
     def __init__(
         self,
         model: nn.Module,
