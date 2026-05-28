@@ -5,26 +5,24 @@ from __future__ import annotations
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from torch import nn
 from torchmetrics.classification import BinaryF1Score, MulticlassAccuracy, MulticlassF1Score
 
-from bfrb_sensors.models.baseline import BaselineMLPClassifier
 from bfrb_sensors.training.metrics import HierarchyMapping
 
 
 class BFRBClassificationModule(pl.LightningModule):
     def __init__(
         self,
-        input_dim: int,
-        hidden_dim: int,
+        model: nn.Module,
         num_classes: int,
-        dropout: float,
         lr: float,
         weight_decay: float,
         hierarchy: HierarchyMapping,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=["hierarchy"])
-        self.model = BaselineMLPClassifier(input_dim, hidden_dim, num_classes, dropout)
+        self.save_hyperparameters(ignore=["hierarchy", "model"])
+        self.model = model
         self.lr = lr
         self.weight_decay = weight_decay
         self.hierarchy = hierarchy
