@@ -141,8 +141,10 @@ def train_from_config(cfg: DictConfig) -> None:
     mlf_logger.log_hyperparams({"git_sha": state["sha"], "git_dirty": state["dirty"]})
     logger.info("Training at git sha %s (dirty=%s)", state["sha"], state["dirty"])
 
+    run_checkpoint_dir = Path(cfg.training.checkpoint_dir) / mlf_logger.run_id
+    logger.info("Checkpoints for this run: %s", run_checkpoint_dir)
     checkpoint = make_checkpoint_callback(
-        Path(cfg.training.checkpoint_dir),
+        run_checkpoint_dir,
         monitor=str(cfg.training.monitor),
         mode=str(cfg.training.monitor_mode),
     )
