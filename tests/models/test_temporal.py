@@ -48,7 +48,7 @@ def test_temporal_conv_gru_returns_class_logits():
         "imu": torch.randn(3, 5, 7),
         "imu_derived": torch.randn(3, 5, 7),
         "thm": torch.randn(3, 5, 5),
-        "tof": torch.randn(3, 5, 5, 8, 8),
+        "tof": torch.randn(3, 5, 5, 8, 8),  # unused by forward; model uses tof_stats
         "tof_stats": torch.randn(3, 5, 20),
         "attention_mask": torch.ones(3, 5, dtype=torch.bool),
     }

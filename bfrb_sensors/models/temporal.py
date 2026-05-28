@@ -21,7 +21,9 @@ class AttentionPool(nn.Module):
     def forward(self, x: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         scores = self.score(x).squeeze(-1)  # (B, T)
         scores = scores.masked_fill(~attention_mask.bool(), float("-inf"))
-        weights = torch.softmax(scores, dim=1).unsqueeze(-1)  # (B, T, 1)
+        weights = torch.softmax(scores, dim=1)
+        weights = weights.nan_to_num(0.0)  # guard all-masked rows
+        weights = weights.unsqueeze(-1)  # (B, T, 1)
         return (x * weights).sum(dim=1)  # (B, H)
 
 
@@ -50,6 +52,14 @@ class ConvBlock1D(nn.Module):
 
 
 class TemporalConvGRUClassifier(nn.Module):
+    """Temporal classifier over concatenated vector features.
+
+    forward expects a batch dict with keys ``imu`` (B,T,7), ``imu_derived`` (B,T,7),
+    ``thm`` (B,T,5), ``tof_stats`` (B,T,20) and ``attention_mask`` (B,T). ``input_dim``
+    must equal the summed width of the concatenated features (39 by default).
+    Returns logits of shape (B, num_classes).
+    """
+
     def __init__(
         self,
         input_dim: int,
@@ -60,6 +70,10 @@ class TemporalConvGRUClassifier(nn.Module):
         gru_layers: int = 1,
     ) -> None:
         super().__init__()
+        if hidden_dim % 2 != 0:
+            raise ValueError(
+                f"hidden_dim must be even (BiGRU uses hidden_dim // 2 per direction), got {hidden_dim}"
+            )
         self.input_proj = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
