@@ -41,8 +41,40 @@ class BFRBDataset(Dataset):
         ).to_pydict()
 
         imu = np.asarray(payload["imu"][0], dtype=np.float32)
+        try:
+            imu_derived = np.asarray(payload["imu_derived"][0], dtype=np.float32)
+            tof_stats = np.asarray(payload["tof_stats"][0], dtype=np.float32)
+        except KeyError as exc:
+            raise KeyError(
+                "Prepared sequence is missing imu_derived/tof_stats. "
+                "Refresh prepared data with `uv run bfrb download` or "
+                "`uv run dvc repro prepare`."
+            ) from exc
         thm = np.asarray(payload["thm"][0], dtype=np.float32)
         tof = np.asarray(payload["tof"][0], dtype=np.float32)
+
+        expected_shapes = {
+            "imu": imu.ndim == 2 and imu.shape[-1] == 7,
+            "imu_derived": imu_derived.ndim == 2 and imu_derived.shape[-1] == 7,
+            "thm": thm.ndim == 2 and thm.shape[-1] == 5,
+            "tof": tof.ndim == 4 and tof.shape[1:] == (5, 8, 8),
+            "tof_stats": tof_stats.ndim == 2 and tof_stats.shape[-1] == 20,
+        }
+        invalid = [name for name, is_valid in expected_shapes.items() if not is_valid]
+        if not invalid:
+            expected_length = int(row["length"])
+            lengths = {
+                "imu": imu.shape[0],
+                "imu_derived": imu_derived.shape[0],
+                "thm": thm.shape[0],
+                "tof": tof.shape[0],
+                "tof_stats": tof_stats.shape[0],
+            }
+            invalid.extend(name for name, length in lengths.items() if length != expected_length)
+        if invalid:
+            raise ValueError(
+                f"Invalid sensor shape for sequence {sequence_id}: {', '.join(invalid)}"
+            )
 
         has_thm = bool(row["has_thm"])
         has_tof = bool(row["has_tof"])
@@ -52,8 +84,10 @@ class BFRBDataset(Dataset):
 
         sample: dict[str, Any] = {
             "imu": torch.as_tensor(imu, dtype=torch.float32),
+            "imu_derived": torch.as_tensor(imu_derived, dtype=torch.float32),
             "thm": torch.as_tensor(thm, dtype=torch.float32),
             "tof": torch.as_tensor(tof, dtype=torch.float32),
+            "tof_stats": torch.as_tensor(tof_stats, dtype=torch.float32),
             "label": torch.tensor(self.label_encoder.encode(str(row["gesture"])), dtype=torch.long),
             "has_thm": torch.tensor(has_thm, dtype=torch.bool),
             "has_tof": torch.tensor(has_tof, dtype=torch.bool),

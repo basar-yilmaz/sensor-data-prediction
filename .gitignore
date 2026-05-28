@@ -88,6 +88,11 @@ Thumbs.db
 
 # MLflow
 mlruns/
+mlruns-server/
+mlartifacts/
+/plots/
+*.ckpt
+mlflow.db
 
 # Outputs (Hydra)
 outputs/

@@ -18,6 +18,9 @@ dependencies = [
   "fire>=0.6,<1",
   "dvc[s3,http]>=3.50,<4",
   "mlflow>=2.12,<3",
+  "torchmetrics>=1.4,<2",
+  "matplotlib>=3.8,<4",
+  "requests>=2.32,<3",
 ]
 
 [project.scripts]
@@ -40,12 +43,12 @@ build-backend = "hatchling.build"
 packages = ["bfrb_sensors"]
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cpu" }]
+torch = [{ index = "pytorch-cuda" }]
 
 [tool.ruff]
 line-length = 100

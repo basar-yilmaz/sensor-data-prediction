@@ -29,3 +29,23 @@ uv run dvc repro
 ```
 
 The pipeline prepares per-sequence parquet files, writes the sequence index and label encoder, and builds subject-disjoint stratified splits under `data/prepared/`.
+
+## Train
+
+Start the local MLflow tracking server (`127.0.0.1:8080`):
+
+```bash
+docker compose up -d mlflow
+```
+
+Run training (auto-fetches prepared data via DVC if missing):
+
+```bash
+uv run bfrb train
+```
+
+Hyperparameters are Hydra-managed; override from the CLI, e.g.:
+
+```bash
+uv run bfrb train training.max_epochs=20 training.batch_size=32
+```

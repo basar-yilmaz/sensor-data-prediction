@@ -2,6 +2,9 @@ defaults:
   - _self_
   - data: default
   - logging: default
+  - model: baseline_mlp
+  - training: default
+  - mlflow: local
 
 seed: 42
 
