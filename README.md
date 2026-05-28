@@ -2,7 +2,7 @@
 
 Multimodal time-series classification of Body-Focused Repetitive Behaviors (BFRBs) — hair-pulling, skin-picking, nail-biting — from a wrist-worn Helios device. Source: CMI Kaggle competition _Detect Behavior with Sensor Data_.
 
-The model receives variable-length sequences with three modalities (IMU 7ch, Thermopile 5ch, Time-of-Flight 5×8×8 = 320ch) and predicts one of 18 classes (gesture × hand orientation). About half the test sequences contain only IMU; the data pipeline simulates that with train-time modality dropout.
+The model receives variable-length sequences with three modalities (IMU 7ch, Thermopile 5ch, Time-of-Flight 5×8×8 = 320ch) and predicts one of 18 gesture classes. Hand orientation (4 values) and sequence type (Target/Non-Target) are recorded as metadata, not modeled as the label. About half the test sequences contain only IMU; the data pipeline simulates that with train-time modality dropout.
 
 ## Setup
 
