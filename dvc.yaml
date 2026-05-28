@@ -1,0 +1,29 @@
+stages:
+  prepare:
+    cmd: uv run bfrb prepare data.prepare.raw_csv=${prepare.raw_csv}
+      data.prepare.prepared_dir=${prepare.prepared_dir}
+      data.prepare.min_length=${prepare.min_length}
+      data.prepare.nan_threshold=${prepare.nan_threshold}
+    deps:
+      - ${prepare.raw_csv}
+      - bfrb_sensors/data/prepare.py
+      - bfrb_sensors/data/label_encoder.py
+    params:
+      - prepare
+    outs:
+      - ${prepare.prepared_dir}/sequences
+      - ${prepare.prepared_dir}/index.parquet
+      - ${prepare.prepared_dir}/label_encoder.json
+
+  splits:
+    cmd: uv run bfrb splits data.splits.prepared_dir=${splits.prepared_dir}
+      data.splits.n_folds=${splits.n_folds}
+      data.splits.seed=${seed}
+    deps:
+      - ${splits.prepared_dir}/index.parquet
+      - bfrb_sensors/data/splits.py
+    params:
+      - splits
+      - seed
+    outs:
+      - ${splits.prepared_dir}/splits.json

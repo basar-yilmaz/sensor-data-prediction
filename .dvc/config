@@ -1,0 +1,8 @@
+[core]
+    remote = bfrb-data
+['remote "bfrb-data"']
+    url = gdrive://1NqRTKE9CcSHk-OPiTbHLQhsYWg7HlOIP
+    gdrive_acknowledge_abuse = true
+['remote "bfrb-models"']
+    url = gdrive://1HSduoG8JFUz7LD9BU-VuqQtIUNaFFzKa
+    gdrive_acknowledge_abuse = true
