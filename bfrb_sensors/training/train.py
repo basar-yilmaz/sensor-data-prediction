@@ -184,7 +184,17 @@ def _log_artifacts(
     if dvc_lock.exists():
         paths = [*paths, dvc_lock]
 
+    logger.info("Wrote %d plots to %s", len(paths) - int(dvc_lock.exists()), plots_dir)
+
     run_id = mlf_logger.run_id
     for path in paths:
-        mlf_logger.experiment.log_artifact(run_id, str(path))
-        logger.info("Logged artifact to MLflow: %s", path)
+        try:
+            mlf_logger.experiment.log_artifact(run_id, str(path))
+            logger.info("Logged artifact to MLflow: %s", path)
+        except Exception:
+            logger.exception(
+                "Failed to log artifact %s to MLflow. The local copy is preserved under %s. "
+                "Check that the server serves artifacts (`--serve-artifacts`).",
+                path,
+                plots_dir,
+            )
