@@ -11,8 +11,10 @@ from bfrb_sensors.data.collate import ModalityDropout, pad_collate
 def _sample(length: int, label: int) -> dict[str, torch.Tensor]:
     return {
         "imu": torch.full((length, 7), float(label + 1)),
+        "imu_derived": torch.full((length, 7), float(label + 2)),
         "thm": torch.full((length, 5), float(label + 10)),
         "tof": torch.full((length, 5, 8, 8), float(label + 100)),
+        "tof_stats": torch.full((length, 20), float(label + 200)),
         "label": torch.tensor(label, dtype=torch.long),
         "has_thm": torch.tensor(True, dtype=torch.bool),
         "has_tof": torch.tensor(True, dtype=torch.bool),
@@ -31,6 +33,7 @@ def test_p_one_zeroes_modalities_and_flips_flags():
 
     assert torch.count_nonzero(result["thm"]) == 0
     assert torch.count_nonzero(result["tof"]) == 0
+    assert torch.count_nonzero(result["tof_stats"]) == 0
     torch.testing.assert_close(result["has_thm"], torch.zeros(4, dtype=torch.bool))
     torch.testing.assert_close(result["has_tof"], torch.zeros(4, dtype=torch.bool))
 
@@ -45,13 +48,36 @@ def test_p_zero_is_no_op():
         torch.testing.assert_close(result[key], value)
 
 
+def test_p_zero_preserves_preexisting_unavailable_tof_stats():
+    batch = _batch(size=2)
+    batch["has_tof"][0] = False
+    expected_tof_stats = batch["tof_stats"].clone()
+
+    result = ModalityDropout(p_thm=0.0, p_tof=0.0, generator_seed=0)(batch)
+
+    torch.testing.assert_close(result["tof_stats"], expected_tof_stats)
+
+
+def test_tof_dropout_only_zeroes_newly_dropped_tof_stats():
+    batch = _batch(size=2)
+    batch["has_tof"][0] = False
+    expected_preexisting_tof_stats = batch["tof_stats"][0].clone()
+
+    result = ModalityDropout(p_thm=0.0, p_tof=1.0, generator_seed=0)(batch)
+
+    torch.testing.assert_close(result["tof_stats"][0], expected_preexisting_tof_stats)
+    assert torch.count_nonzero(result["tof_stats"][1]) == 0
+
+
 def test_imu_is_never_touched():
     batch = _batch()
     expected_imu = batch["imu"].clone()
+    expected_imu_derived = batch["imu_derived"].clone()
 
     result = ModalityDropout(p_thm=1.0, p_tof=1.0, generator_seed=0)(batch)
 
     torch.testing.assert_close(result["imu"], expected_imu)
+    torch.testing.assert_close(result["imu_derived"], expected_imu_derived)
 
 
 def test_observed_frequency_matches_probability():
