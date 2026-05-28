@@ -27,7 +27,7 @@ uv run pytest -v
 
 ## Data layer
 
-Two DVC remotes back the project, both on Cloudflare R2 (S3-compatible): `bfrb-data` (raw + prepared) and `bfrb-models` (scalers and, later, training artifacts). The committed `.dvc/config` points each remote at its **public, read-only** R2 URL, so pulling needs no credentials or login.
+Two DVC remotes back the project, both on Cloudflare R2 (S3-compatible): `bfrb-data` (raw + prepared data) and `bfrb-models` (scalers and, later, training artifacts). The committed `.dvc/config` points them at **public, read-only** URLs — `bfrb-data` via a custom domain (`bfrb-data.basaryilmaz.com`, which avoids `r2.dev` rate limits) and `bfrb-models` via its `r2.dev` URL — so pulling needs no credentials or login. The raw `train.csv` and the full prepared dataset (8,101 sequences across 81 subjects, 18 gesture classes) are already published; a fresh clone can `dvc pull` them directly.
 
 ### Download
 
@@ -65,7 +65,7 @@ uv run bfrb prepare
 Outputs land under `data/prepared/`:
 
 - `sequences/{sequence_id}.parquet` — one file per sequence with `imu (T,7)`, `thm (T,5)`, `tof (T,5,8,8)`
-- `index.parquet` — one row per sequence with subject, gesture, length, modality flags, NaN fractions
+- `index.parquet` — one row per sequence with subject, gesture, orientation, sequence_type, length, modality flags, NaN fractions
 - `label_encoder.json` — deterministic gesture → int mapping
 
 Override defaults with Hydra:
@@ -122,4 +122,4 @@ tests/data/              # pytest tests for the data layer
 
 ## Roadmap
 
-This revision lands the data layer for MLOps Task 2. The training pipeline (LightningModule, training loop, MLflow logging, ≥3 logged metric plots, deployment) is the subject of follow-up specs.
+The data layer for MLOps Task 2 is complete and verified against the real CMI dataset: data loading, DVC-backed storage on Cloudflare R2 (public no-auth pull confirmed from a clean clone), preprocessing, and subject-disjoint stratified splits. The training pipeline (LightningModule, training loop, MLflow logging, ≥3 logged metric plots, deployment) is the subject of follow-up specs.
