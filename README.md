@@ -1,6 +1,6 @@
 # BFRB Sensors
 
-Multimodal time-series classification of Body-Focused Repetitive Behaviors (BFRBs) from a wrist-worn Helios device, using IMU, thermopile, and time-of-flight sensors. Source: CMI Kaggle competition *Detect Behavior with Sensor Data*.
+Multimodal time-series classification of Body-Focused Repetitive Behaviors (BFRBs) from a wrist-worn Helios device, using IMU, thermopile, and time-of-flight sensors. Source: CMI Kaggle competition _Detect Behavior with Sensor Data_.
 
 ## Setup
 
