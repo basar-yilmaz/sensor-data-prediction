@@ -46,3 +46,30 @@ def remove_gravity_from_acc(
         g_sensor = rot.apply(g_world, inverse=True)
         linear[valid] = acc[valid] - g_sensor
     return linear.astype(np.float32)
+
+
+def angular_velocity_and_distance(
+    quat: np.ndarray, sample_hz: float = 200.0, eps: float = 1e-8
+) -> tuple[np.ndarray, np.ndarray]:
+    """Body-frame angular velocity (T,3) and angular distance (T,) in radians.
+
+    For each t: R_rel = R_t^-1 * R_{t+1}; rotvec = R_rel.as_rotvec();
+    angular_vel[t] = rotvec / dt; angular_distance[t] = ||rotvec||.
+    The last timestep and any transition with an invalid endpoint yield zeros.
+    Returns (angular_vel float32 (T,3), angular_distance float32 (T,)).
+    """
+    unit, valid = normalize_quaternions(quat, eps=eps)
+    n = unit.shape[0]
+    ang_vel = np.zeros((n, 3), dtype=np.float64)
+    ang_dist = np.zeros(n, dtype=np.float64)
+    if n >= 2:
+        dt = 1.0 / sample_hz
+        pair_valid = valid[:-1] & valid[1:]
+        if pair_valid.any():
+            r_t = Rotation.from_quat(unit[:-1][pair_valid])
+            r_t1 = Rotation.from_quat(unit[1:][pair_valid])
+            rotvec = (r_t.inv() * r_t1).as_rotvec()
+            idx = np.flatnonzero(pair_valid)
+            ang_vel[idx] = rotvec / dt
+            ang_dist[idx] = np.linalg.norm(rotvec, axis=1)
+    return ang_vel.astype(np.float32), ang_dist.astype(np.float32)
