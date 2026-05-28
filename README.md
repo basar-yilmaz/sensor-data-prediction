@@ -27,7 +27,7 @@ uv run pytest -v
 
 ## Data layer
 
-Two DVC remotes back the project: `bfrb-data` (raw + prepared) and `bfrb-models` (scalers and, later, training artifacts), both on Google Drive. Configuration lives in `.dvc/config`; you must have read access to both folders.
+Two DVC remotes back the project, both on Cloudflare R2 (S3-compatible): `bfrb-data` (raw + prepared) and `bfrb-models` (scalers and, later, training artifacts). The committed `.dvc/config` points each remote at its **public, read-only** R2 URL, so pulling needs no credentials or login.
 
 ### Download
 
@@ -35,7 +35,24 @@ Two DVC remotes back the project: `bfrb-data` (raw + prepared) and `bfrb-models`
 uv run bfrb download
 ```
 
-This calls `dvc pull -r bfrb-data` under the hood. If you do not have access to the remote, download the CMI competition data manually from Kaggle into `data/raw/`.
+This pulls from the public `bfrb-data` remote — no authentication required. If the remote is ever unavailable, download the CMI competition data manually from Kaggle into `data/raw/`.
+
+### Pushing data (maintainers only)
+
+Writing to the remotes requires R2 API credentials, which are kept out of git in `.dvc/config.local`. Configure them once:
+
+```bash
+ENDPOINT=https://4c8600513f554fa0547f3ef7c9319540.r2.cloudflarestorage.com
+for remote in bfrb-data bfrb-models; do
+  uv run dvc remote modify --local "$remote" url "s3://$remote"
+  uv run dvc remote modify --local "$remote" endpointurl "$ENDPOINT"
+  uv run dvc remote modify --local "$remote" region auto
+  uv run dvc remote modify --local "$remote" access_key_id "$R2_ACCESS_KEY_ID"
+  uv run dvc remote modify --local "$remote" secret_access_key "$R2_SECRET_ACCESS_KEY"
+done
+```
+
+The `--local` flag writes to `.dvc/config.local` (gitignored), overriding the public HTTPS URL with the authenticated `s3://` endpoint for your machine only. Then `uv run dvc push` / `uv run dvc push -r bfrb-models` upload via the S3 API.
 
 ### Prepare
 
