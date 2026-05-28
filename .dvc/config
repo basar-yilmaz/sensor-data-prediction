@@ -1,6 +1,6 @@
 [core]
     remote = bfrb-data
 ['remote "bfrb-data"']
-    url = https://pub-226870c4b0704cb48c596bac4c4a5c72.r2.dev
+    url = https://bfrb-data.basaryilmaz.com
 ['remote "bfrb-models"']
     url = https://pub-37b37a9fd38848e28ae8500972301dd2.r2.dev
