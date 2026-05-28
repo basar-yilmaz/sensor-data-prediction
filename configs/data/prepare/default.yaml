@@ -1,0 +1,9 @@
+raw_csv: ${paths.raw_dir}/train.csv
+prepared_dir: ${paths.prepared_dir}
+min_length: 10
+nan_threshold: 0.5
+verbose: false
+sequence_id_col: sequence_id
+subject_id_col: subject_id
+gesture_col: gesture
+step_col: step

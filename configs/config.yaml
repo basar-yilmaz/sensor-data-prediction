@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - data: default
+  - logging: default
+
+seed: 42
+
+paths:
+  raw_dir: ${oc.env:BFRB_RAW_DIR,data/raw}
+  prepared_dir: ${oc.env:BFRB_PREPARED_DIR,data/prepared}
+  artifacts_dir: ${oc.env:BFRB_ARTIFACTS_DIR,artifacts}
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    chdir: false
