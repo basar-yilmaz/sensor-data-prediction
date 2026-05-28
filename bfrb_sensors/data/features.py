@@ -73,3 +73,27 @@ def angular_velocity_and_distance(
             ang_vel[idx] = rotvec / dt
             ang_dist[idx] = np.linalg.norm(rotvec, axis=1)
     return ang_vel.astype(np.float32), ang_dist.astype(np.float32)
+
+
+def tof_per_sensor_stats(tof_grid: np.ndarray, sentinel: float = -1.0) -> np.ndarray:
+    """Per-sensor mean/std/min/max over ToF pixels, treating sentinel as missing."""
+    tof = np.asarray(tof_grid, dtype=np.float64)
+    timesteps = tof.shape[0]
+    flat = tof.reshape(timesteps, 5, 64)
+    valid = (flat != sentinel) & np.isfinite(flat)
+    counts = valid.sum(axis=2)
+    has_values = counts > 0
+
+    safe = np.where(valid, flat, 0.0)
+    total = safe.sum(axis=2)
+    mean = np.divide(total, counts, out=np.full_like(total, np.nan), where=has_values)
+
+    total_sq = (safe * safe).sum(axis=2)
+    mean_sq = np.divide(total_sq, counts, out=np.full_like(total_sq, np.nan), where=has_values)
+    std = np.sqrt(np.clip(mean_sq - mean * mean, a_min=0.0, a_max=None))
+
+    minima = np.where(has_values, np.where(valid, flat, np.inf).min(axis=2), np.nan)
+    maxima = np.where(has_values, np.where(valid, flat, -np.inf).max(axis=2), np.nan)
+
+    stats = np.stack([mean, std, minima, maxima], axis=2)
+    return stats.reshape(timesteps, 20).astype(np.float32)

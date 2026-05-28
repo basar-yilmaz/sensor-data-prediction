@@ -4,8 +4,13 @@ stages:
       data.prepare.prepared_dir=${prepare.prepared_dir}
       data.prepare.min_length=${prepare.min_length}
       data.prepare.nan_threshold=${prepare.nan_threshold}
+      data.prepare.gravity=${prepare.gravity}
+      data.prepare.sample_hz=${prepare.sample_hz}
+      data.prepare.quaternion_eps=${prepare.quaternion_eps}
+      data.prepare.tof_missing_sentinel=${prepare.tof_missing_sentinel}
     deps:
       - ${prepare.raw_csv}
+      - bfrb_sensors/data/features.py
       - bfrb_sensors/data/prepare.py
       - bfrb_sensors/data/label_encoder.py
     params:

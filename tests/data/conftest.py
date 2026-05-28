@@ -41,6 +41,9 @@ def _make_sequence(spec: SyntheticSequenceSpec, rng: np.random.Generator) -> pd.
     data["sequence_type"] = np.array([spec.sequence_type] * rows)
 
     imu = rng.standard_normal((rows, len(IMU_COLS))).astype(np.float64)
+    rot_block = imu[:, 3:7]
+    rot_norms = np.linalg.norm(rot_block, axis=1, keepdims=True)
+    imu[:, 3:7] = rot_block / rot_norms
     if spec.nan_frac_imu > 0:
         mask = rng.random((rows, len(IMU_COLS))) < spec.nan_frac_imu
         imu[mask] = np.nan

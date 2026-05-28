@@ -20,6 +20,10 @@ def test_config_composes():
     assert cfg.data.prepare.orientation_col == "orientation"
     assert cfg.data.prepare.sequence_type_col == "sequence_type"
     assert cfg.data.prepare.expected_n_classes == 18
+    assert cfg.data.prepare.gravity == 9.81
+    assert cfg.data.prepare.sample_hz == 200
+    assert float(cfg.data.prepare.quaternion_eps) == 1e-8
+    assert cfg.data.prepare.tof_missing_sentinel == -1
     assert cfg.data.splits.n_folds == 5
     assert cfg.data.splits.prepared_dir == "data/prepared"
     assert cfg.data.datamodule.batch_size == 32

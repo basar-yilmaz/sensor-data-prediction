@@ -42,6 +42,10 @@ def _prepare_config_from_hydra(cfg: DictConfig) -> PrepareConfig:
         orientation_col=str(cfg.data.prepare.orientation_col),
         sequence_type_col=str(cfg.data.prepare.sequence_type_col),
         expected_n_classes=int(cfg.data.prepare.expected_n_classes),
+        gravity=float(cfg.data.prepare.gravity),
+        sample_hz=float(cfg.data.prepare.sample_hz),
+        quaternion_eps=float(cfg.data.prepare.quaternion_eps),
+        tof_missing_sentinel=float(cfg.data.prepare.tof_missing_sentinel),
     )
 
 

@@ -8,6 +8,7 @@ from bfrb_sensors.data.features import (
     angular_velocity_and_distance,
     normalize_quaternions,
     remove_gravity_from_acc,
+    tof_per_sensor_stats,
 )
 
 GRAVITY = 9.81
@@ -67,3 +68,37 @@ def test_angular_features_invalid_transition_is_zero():
     vel, dist = angular_velocity_and_distance(quat, sample_hz=200.0)
     np.testing.assert_allclose(vel, np.zeros((2, 3)), atol=1e-6)
     np.testing.assert_allclose(dist, np.zeros(2), atol=1e-6)
+
+
+def _grid_from_sensor_rows(rows_per_sensor: list[np.ndarray]) -> np.ndarray:
+    timesteps = rows_per_sensor[0].shape[0]
+    grid = np.stack(rows_per_sensor, axis=1)
+    return grid.reshape(timesteps, 5, 8, 8)
+
+
+def test_tof_stats_shape_and_order():
+    grid = np.zeros((3, 5, 8, 8), dtype=np.float64)
+    stats = tof_per_sensor_stats(grid, sentinel=-1.0)
+    assert stats.shape == (3, 20)
+
+
+def test_tof_stats_single_valid_pixel_among_sentinels():
+    sensors = []
+    sensor_1 = np.full((1, 64), -1.0)
+    sensor_1[0, 0] = 7.0
+    sensors.append(sensor_1)
+    for _ in range(4):
+        sensors.append(np.full((1, 64), -1.0))
+
+    grid = _grid_from_sensor_rows(sensors)
+    stats = tof_per_sensor_stats(grid, sentinel=-1.0)
+
+    np.testing.assert_allclose(stats[0, 0:4], [7.0, 0.0, 7.0, 7.0], atol=1e-6)
+    assert np.isnan(stats[0, 4:8]).all()
+
+
+def test_tof_stats_no_runtime_warnings_on_all_missing(recwarn):
+    grid = np.full((2, 5, 8, 8), -1.0)
+    stats = tof_per_sensor_stats(grid, sentinel=-1.0)
+    assert np.isnan(stats).all()
+    assert len(recwarn) == 0
