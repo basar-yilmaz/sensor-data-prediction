@@ -99,6 +99,10 @@ and can be combined with any model:
   frequency (computed from the training fold only), up-weighting rare gestures.
 - `training.aux_binary_weight=<λ>` adds an auxiliary binary (BFRB target vs.
   non-target) head; the total loss becomes `CE_18 + λ · CE_binary`.
+- `model.use_demographics=true` (temporal model) fuses a per-subject demographics
+  vector (age, sex, handedness, body measurements; continuous fields z-scored
+  fold-wise) through a small MLP into the classifier head. The auxiliary binary
+  head stays sensor-only.
 
 Training uses PyTorch Lightning; configuration is Hydra-managed; experiments
 (hyperparameters, git commit, metrics, and plot artifacts) are tracked in MLflow.
@@ -181,6 +185,10 @@ uv run bfrb train model=temporal_conv_gru \
 # V3: raw-ToF spatial branch (reuses the temporal_conv_gru architecture)
 uv run bfrb train model=temporal_conv_gru_tof training.max_epochs=30 \
   training.class_weighting=sqrt_inv_freq
+
+# Demographics ablation A (sensor-only) vs B (+ demographics branch)
+uv run bfrb train model=temporal_conv_gru                              # A
+uv run bfrb train model=temporal_conv_gru model.use_demographics=true  # B
 ```
 
 After training, metric/loss curves and a confusion matrix are written to `plots/`
