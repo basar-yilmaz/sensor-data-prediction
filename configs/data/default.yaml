@@ -1,0 +1,5 @@
+defaults:
+  - _self_
+  - prepare: default
+  - splits: default
+  - datamodule: default
