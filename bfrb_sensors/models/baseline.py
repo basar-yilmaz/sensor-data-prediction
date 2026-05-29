@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import torch
 from torch import nn
+
+from bfrb_sensors.models.outputs import ModelOutput
 
 
 def masked_mean_pool(x: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
@@ -26,11 +30,11 @@ class BaselineMLPClassifier(nn.Module):
             nn.Linear(hidden_dim, num_classes),
         )
 
-    def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(self, batch: dict[str, torch.Tensor]) -> ModelOutput:
         x = torch.cat(
             [batch["imu"], batch["imu_derived"], batch["thm"], batch["tof_stats"]],
             dim=-1,
         )
         encoded = self.encoder(x)
         pooled = masked_mean_pool(encoded, batch["attention_mask"])
-        return self.classifier(pooled)
+        return ModelOutput(logits=self.classifier(pooled))

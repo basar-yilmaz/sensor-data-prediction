@@ -54,6 +54,6 @@ def test_temporal_conv_gru_returns_class_logits():
     }
 
     with torch.no_grad():
-        logits = model(batch)
+        out = model(batch)
 
-    assert logits.shape == (3, 18)
+    assert out.logits.shape == (3, 18)

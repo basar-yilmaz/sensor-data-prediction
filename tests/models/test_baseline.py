@@ -23,6 +23,6 @@ def test_baseline_mlp_classifier_returns_class_logits():
         "attention_mask": torch.ones(3, 5, dtype=torch.bool),
     }
 
-    logits = model(batch)
+    out = model(batch)
 
-    assert logits.shape == (3, 18)
+    assert out.logits.shape == (3, 18)

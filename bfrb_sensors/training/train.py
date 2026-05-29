@@ -57,7 +57,7 @@ def _collect_val_predictions(module: pl.LightningModule, dataloader) -> tuple[li
     y_true: list[int] = []
     y_pred: list[int] = []
     for batch in dataloader:
-        logits = module(batch)
+        logits = module(batch).logits
         y_pred.extend(logits.argmax(dim=1).tolist())
         y_true.extend(batch["label"].tolist())
     return y_true, y_pred

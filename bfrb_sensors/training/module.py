@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchmetrics.classification import BinaryF1Score, MulticlassAccuracy, MulticlassF1Score
 
+from bfrb_sensors.models.outputs import ModelOutput
 from bfrb_sensors.training.metrics import HierarchyMapping
 
 
@@ -40,17 +41,17 @@ class BFRBClassificationModule(pl.LightningModule):
             num_classes=hierarchy.n_collapsed_classes, average="macro"
         )
 
-    def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(self, batch: dict[str, torch.Tensor]) -> ModelOutput:
         return self.model(batch)
 
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        logits = self(batch)
+        logits = self(batch).logits
         loss = F.cross_entropy(logits, batch["label"])
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> None:
-        logits = self(batch)
+        logits = self(batch).logits
         labels = batch["label"]
         loss = F.cross_entropy(logits, labels)
         preds = logits.argmax(dim=1)

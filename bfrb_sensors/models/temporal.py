@@ -5,6 +5,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
+from bfrb_sensors.models.outputs import ModelOutput
+
 
 class AttentionPool(nn.Module):
     """Masked attention pooling over the time dimension."""
@@ -103,7 +105,7 @@ class TemporalConvGRUClassifier(nn.Module):
             nn.Linear(hidden_dim, num_classes),
         )
 
-    def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(self, batch: dict[str, torch.Tensor]) -> ModelOutput:
         x = torch.cat(
             [batch["imu"], batch["imu_derived"], batch["thm"], batch["tof_stats"]],
             dim=-1,
@@ -113,4 +115,4 @@ class TemporalConvGRUClassifier(nn.Module):
             x = block(x)
         x, _ = self.gru(x)
         pooled = self.pool(x, batch["attention_mask"])
-        return self.classifier(pooled)
+        return ModelOutput(logits=self.classifier(pooled))
