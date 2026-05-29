@@ -46,6 +46,7 @@ def _prepare_config_from_hydra(cfg: DictConfig) -> PrepareConfig:
         sample_hz=float(cfg.data.prepare.sample_hz),
         quaternion_eps=float(cfg.data.prepare.quaternion_eps),
         tof_missing_sentinel=float(cfg.data.prepare.tof_missing_sentinel),
+        demographics_csv=Path(cfg.data.prepare.demographics_csv),
     )
 
 
