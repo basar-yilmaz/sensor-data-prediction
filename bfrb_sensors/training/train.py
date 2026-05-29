@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import subprocess
 from pathlib import Path
@@ -18,6 +17,7 @@ from pytorch_lightning.loggers import MLFlowLogger
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
 from bfrb_sensors.data.download import download_data, ensure_prepared_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
+from bfrb_sensors.data.splits import load_split_fold
 from bfrb_sensors.models.factory import build_model
 from bfrb_sensors.training.class_weights import compute_class_weights
 from bfrb_sensors.training.metrics import HierarchyMapping
@@ -138,8 +138,7 @@ def train_from_config(cfg: DictConfig) -> None:
     encoder = LabelEncoder.load(prepared_dir / "label_encoder.json")
     hierarchy = HierarchyMapping.from_index(index, encoder)
 
-    splits = json.loads((prepared_dir / "splits.json").read_text())
-    train_sequence_ids = splits[str(int(cfg.training.fold))]["train"]
+    train_sequence_ids = load_split_fold(prepared_dir, int(cfg.training.fold))["train"]
     logger.info("Class weighting scheme: %s", cfg.training.class_weighting)
     class_weights = compute_class_weights(
         index,

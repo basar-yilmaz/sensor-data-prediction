@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +21,7 @@ from bfrb_sensors.data.demographics import (
 )
 from bfrb_sensors.data.label_encoder import LabelEncoder, build_label_encoder
 from bfrb_sensors.data.scaler import ScalerConfig, fit_scaler, load_scaler, scaler_path
+from bfrb_sensors.data.splits import load_split_fold
 
 
 @dataclass(frozen=True)
@@ -167,9 +167,4 @@ class BFRBDataModule(pl.LightningDataModule):
         )
 
     def _load_splits(self) -> dict[str, list[str]]:
-        path = Path(self.cfg.prepared_dir) / "splits.json"
-        splits = json.loads(path.read_text())
-        try:
-            return splits[str(self.cfg.fold_idx)]
-        except KeyError as exc:
-            raise KeyError(f"fold {self.cfg.fold_idx} not found in {path}") from exc
+        return load_split_fold(self.cfg.prepared_dir, self.cfg.fold_idx)
