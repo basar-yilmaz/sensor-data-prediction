@@ -7,6 +7,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from sklearn.model_selection import StratifiedGroupKFold
@@ -22,6 +23,36 @@ class SplitsConfig:
     group_col: str = "subject_id"
     stratify_col: str = "gesture"
     force: bool = False
+
+
+def load_split_file(prepared_dir: Path | str) -> dict[str, Any]:
+    path = Path(prepared_dir) / "splits.json"
+    payload = json.loads(path.read_text())
+    if not isinstance(payload, dict) or set(payload) != {"metadata", "folds"}:
+        raise ValueError(f"{path} must use the versioned split schema with metadata and folds")
+
+    metadata = payload["metadata"]
+    folds = payload["folds"]
+    if not isinstance(metadata, dict) or metadata.get("version") != 1:
+        raise ValueError(f"{path} has unsupported split schema metadata")
+    if not isinstance(folds, dict):
+        raise ValueError(f"{path} split folds must be an object")
+    return payload
+
+
+def load_split_fold(prepared_dir: Path | str, fold_idx: int) -> dict[str, list[str]]:
+    path = Path(prepared_dir) / "splits.json"
+    folds = load_split_file(prepared_dir)["folds"]
+    key = str(fold_idx)
+    try:
+        fold = folds[key]
+    except KeyError as exc:
+        raise KeyError(f"fold {fold_idx} not found in {path}") from exc
+    if not isinstance(fold, dict) or set(fold) != {"train", "val"}:
+        raise ValueError(f"fold {fold_idx} in {path} must contain train and val lists")
+    if not isinstance(fold["train"], list) or not isinstance(fold["val"], list):
+        raise ValueError(f"fold {fold_idx} in {path} train and val entries must be lists")
+    return fold
 
 
 def _index_hash(index: pd.DataFrame, *, group_col: str, stratify_col: str) -> str:

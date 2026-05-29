@@ -8,7 +8,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from bfrb_sensors.data.splits import SplitsConfig, make_splits
+from bfrb_sensors.data.splits import (
+    SplitsConfig,
+    load_split_file,
+    load_split_fold,
+    make_splits,
+)
 
 
 def _build_index(tmp_path: Path, n_subjects: int = 20, n_classes: int = 18) -> Path:
@@ -133,3 +138,24 @@ def test_splits_refuse_to_overwrite_without_force(tmp_path: Path):
 
     with pytest.raises(FileExistsError, match="splits.json already exists"):
         make_splits(cfg)
+
+
+def test_load_split_file_rejects_legacy_schema(tmp_path: Path):
+    prepared_dir = _build_index(tmp_path)
+    (prepared_dir / "splits.json").write_text(
+        json.dumps({"0": {"train": ["s0000"], "val": ["s0001"]}})
+    )
+
+    with pytest.raises(ValueError, match="versioned split schema"):
+        load_split_file(prepared_dir)
+
+
+def test_load_split_fold_returns_selected_fold(tmp_path: Path):
+    prepared_dir = _build_index(tmp_path)
+    make_splits(SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42))
+
+    fold = load_split_fold(prepared_dir, 0)
+
+    assert sorted(fold.keys()) == ["train", "val"]
+    assert fold["train"]
+    assert fold["val"]
