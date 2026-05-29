@@ -92,6 +92,13 @@ class Commands:
         _configure_logging(cfg)
         make_splits(_splits_config_from_hydra(cfg))
 
+    def train(self, *overrides: str) -> None:
+        from bfrb_sensors.training.train import train_from_config
+
+        cfg = _load_config(list(overrides))
+        _configure_logging(cfg)
+        train_from_config(cfg)
+
     def warm_scaler(self, *overrides: str) -> None:
         """Eagerly fit the scaler for the configured fold (otherwise lazy-fit on first train)."""
         cfg = _load_config(list(overrides))

@@ -23,8 +23,10 @@ def pad_collate(batch: list[dict]) -> dict:
 
     return {
         "imu": pad_sequence([sample["imu"] for sample in batch], batch_first=True),
+        "imu_derived": pad_sequence([sample["imu_derived"] for sample in batch], batch_first=True),
         "thm": pad_sequence([sample["thm"] for sample in batch], batch_first=True),
         "tof": tof,
+        "tof_stats": pad_sequence([sample["tof_stats"] for sample in batch], batch_first=True),
         "label": torch.stack([sample["label"] for sample in batch]),
         "has_thm": torch.stack([sample["has_thm"] for sample in batch]),
         "has_tof": torch.stack([sample["has_tof"] for sample in batch]),
@@ -48,12 +50,13 @@ class ModalityDropout:
 
     def __call__(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         self._drop_modality(batch, "thm", "has_thm", self.p_thm)
-        self._drop_modality(batch, "tof", "has_tof", self.p_tof)
+        dropped_tof = self._drop_modality(batch, "tof", "has_tof", self.p_tof)
+        batch["tof_stats"][dropped_tof] = 0
         return batch
 
     def _drop_modality(
         self, batch: dict[str, torch.Tensor], key: str, flag_key: str, p: float
-    ) -> None:
+    ) -> torch.Tensor:
         dropped = (
             torch.rand(
                 batch[flag_key].shape,
@@ -62,5 +65,7 @@ class ModalityDropout:
             )
             < p
         )
+        newly_dropped = dropped & batch[flag_key]
         batch[key][dropped] = 0
         batch[flag_key][dropped] = False
+        return newly_dropped

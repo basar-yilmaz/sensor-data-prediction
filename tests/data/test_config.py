@@ -28,3 +28,8 @@ def test_config_composes():
     assert cfg.data.splits.prepared_dir == "data/prepared"
     assert cfg.data.datamodule.batch_size == 32
     assert cfg.data.datamodule.artifacts_dir == "artifacts"
+    assert cfg.model.name == "baseline_mlp"
+    assert cfg.model.input_dim == 39
+    assert cfg.training.monitor == "val_hierarchical_f1"
+    assert cfg.training.monitor_mode == "max"
+    assert cfg.mlflow.tracking_uri == "http://127.0.0.1:8080"

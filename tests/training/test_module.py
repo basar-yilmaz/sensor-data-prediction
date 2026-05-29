@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+import pandas as pd
+import pytest
+import torch
+
+from bfrb_sensors.data.label_encoder import build_label_encoder
+from bfrb_sensors.training.metrics import HierarchyMapping
+from bfrb_sensors.training.module import BFRBClassificationModule
+
+
+def _batch(batch_size: int = 4, timesteps: int = 6) -> dict[str, torch.Tensor]:
+    return {
+        "imu": torch.randn(batch_size, timesteps, 7),
+        "imu_derived": torch.randn(batch_size, timesteps, 7),
+        "thm": torch.randn(batch_size, timesteps, 5),
+        "tof": torch.randn(batch_size, timesteps, 5, 8, 8),
+        "tof_stats": torch.randn(batch_size, timesteps, 20),
+        "attention_mask": torch.ones(batch_size, timesteps, dtype=torch.bool),
+        "label": torch.tensor([0, 1, 2, 0])[:batch_size],
+    }
+
+
+def _mapping() -> HierarchyMapping:
+    encoder = build_label_encoder(["target_a", "target_b", "non_a"])
+    index = pd.DataFrame(
+        [
+            {"gesture": "target_a", "sequence_type": "Target"},
+            {"gesture": "target_b", "sequence_type": "Target"},
+            {"gesture": "non_a", "sequence_type": "Non-Target"},
+        ]
+    )
+    return HierarchyMapping.from_index(index, encoder)
+
+
+@pytest.mark.filterwarnings("ignore:You are trying to `self.log\\(\\)`")
+def test_training_step_returns_loss():
+    module = BFRBClassificationModule(
+        input_dim=39,
+        hidden_dim=16,
+        num_classes=3,
+        dropout=0.0,
+        lr=1e-3,
+        weight_decay=0.0,
+        hierarchy=_mapping(),
+    )
+
+    loss = module.training_step(_batch(), 0)
+
+    assert loss.ndim == 0
+    assert torch.isfinite(loss)
