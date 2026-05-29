@@ -88,13 +88,13 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
     length = len(seq_df)
 
     if length < cfg.min_length:
-        logger.warning(
-            "Dropping sequence %s (subject=%s): length %d < min_length %d",
-            sequence_id,
-            subject_id,
-            length,
-            cfg.min_length,
-        )
+        # logger.warning(
+        #     "Dropping sequence %s (subject=%s): length %d < min_length %d",
+        #     sequence_id,
+        #     subject_id,
+        #     length,
+        #     cfg.min_length,
+        # )
         return None
 
     imu_raw = seq_df[list(IMU_COLUMNS)].to_numpy(dtype=np.float64)
@@ -106,12 +106,12 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
     frac_nan_tof = float(np.isnan(tof_raw).mean())
 
     if frac_nan_imu > cfg.nan_threshold:
-        logger.warning(
-            "Dropping sequence %s: IMU NaN fraction %.2f exceeds threshold %.2f",
-            sequence_id,
-            frac_nan_imu,
-            cfg.nan_threshold,
-        )
+        # logger.warning(
+        #     "Dropping sequence %s: IMU NaN fraction %.2f exceeds threshold %.2f",
+        #     sequence_id,
+        #     frac_nan_imu,
+        #     cfg.nan_threshold,
+        # )
         return None
 
     has_thm = frac_nan_thm <= cfg.nan_threshold

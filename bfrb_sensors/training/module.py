@@ -29,6 +29,12 @@ class BFRBClassificationModule(pl.LightningModule):
         hierarchy: HierarchyMapping,
         class_weights: torch.Tensor | None = None,
         aux_binary_weight: float = 0.0,
+        scheduler: str = "none",
+        scheduler_factor: float = 0.5,
+        scheduler_patience: int = 3,
+        scheduler_min_lr: float = 1.0e-6,
+        monitor: str = "val_hierarchical_f1",
+        monitor_mode: str = "max",
     ) -> None:
         super().__init__()
         self.save_hyperparameters(ignore=["hierarchy", "model", "class_weights"])
@@ -37,6 +43,12 @@ class BFRBClassificationModule(pl.LightningModule):
         self.weight_decay = weight_decay
         self.hierarchy = hierarchy
         self.aux_binary_weight = aux_binary_weight
+        self.scheduler = scheduler
+        self.scheduler_factor = scheduler_factor
+        self.scheduler_patience = scheduler_patience
+        self.scheduler_min_lr = scheduler_min_lr
+        self.monitor = monitor
+        self.monitor_mode = monitor_mode
         self.register_buffer("class_weights", class_weights)
         self.val_accuracy = MulticlassAccuracy(num_classes=num_classes, average="micro")
         self.val_macro_f1_18 = MulticlassF1Score(num_classes=num_classes, average="macro")
@@ -94,4 +106,17 @@ class BFRBClassificationModule(pl.LightningModule):
         self.val_macro_f1_collapsed.reset()
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        if self.scheduler == "none":
+            return optimizer
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=self.monitor_mode,
+            factor=self.scheduler_factor,
+            patience=self.scheduler_patience,
+            min_lr=self.scheduler_min_lr,
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "monitor": self.monitor},
+        }
