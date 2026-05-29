@@ -61,6 +61,7 @@ def _splits_config_from_hydra(cfg: DictConfig) -> SplitsConfig:
         seed=int(cfg.data.splits.seed),
         group_col=str(cfg.data.splits.group_col),
         stratify_col=str(cfg.data.splits.stratify_col),
+        force=bool(cfg.data.splits.force),
     )
 
 

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from hydra import compose, initialize_config_dir
+
+from bfrb_sensors.commands import _splits_config_from_hydra
 
 
 def test_config_composes():
@@ -26,6 +29,7 @@ def test_config_composes():
     assert cfg.data.prepare.tof_missing_sentinel == -1
     assert cfg.data.splits.n_folds == 5
     assert cfg.data.splits.prepared_dir == "data/prepared"
+    assert cfg.data.splits.force is False
     assert cfg.data.datamodule.batch_size == 32
     assert cfg.data.datamodule.artifacts_dir == "artifacts"
     assert cfg.model.name == "baseline_mlp"
@@ -36,6 +40,26 @@ def test_config_composes():
     assert cfg.training.class_weighting == "none"
     assert cfg.mlflow.tracking_uri == "http://127.0.0.1:8080"
     assert cfg.data.auto_prepare is True
+
+
+def test_splits_config_maps_force_override():
+    config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
+    with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
+        cfg = compose(config_name="config", overrides=["data.splits.force=true"])
+
+    splits_cfg = _splits_config_from_hydra(cfg)
+
+    assert splits_cfg.force is True
+    assert splits_cfg.group_col == "subject_id"
+    assert splits_cfg.stratify_col == "gesture"
+
+
+def test_dvc_splits_command_passes_tracked_split_columns():
+    dvc_yaml = Path(__file__).resolve().parents[2] / "dvc.yaml"
+    contents = dvc_yaml.read_text()
+
+    assert "data.splits.group_col=${splits.group_col}" in contents
+    assert "data.splits.stratify_col=${splits.stratify_col}" in contents
 
 
 def test_config_selects_temporal_model():
@@ -59,3 +83,30 @@ def test_config_selects_temporal_tof_model():
     assert cfg.model.name == "temporal_conv_gru"
     assert cfg.model.use_tof_raw is True
     assert cfg.model.tof_embed_dim == 32
+
+
+@pytest.mark.parametrize(
+    ("experiment", "aux_binary", "aux_weight"),
+    [
+        ("tof_no_demo", False, 0.0),
+        ("tof_no_demo_aux_01", True, 0.1),
+        ("tof_no_demo_aux_02", True, 0.2),
+        ("tof_no_demo_aux_03", True, 0.3),
+        ("tof_no_demo_aux_05", True, 0.5),
+    ],
+)
+def test_config_selects_named_training_experiments(
+    experiment: str, aux_binary: bool, aux_weight: float
+):
+    config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
+    with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
+        cfg = compose(config_name="config", overrides=[f"+experiment={experiment}"])
+
+    assert cfg.model.name == "temporal_conv_gru"
+    assert cfg.model.use_tof_raw is True
+    assert cfg.model.use_demographics is False
+    assert cfg.model.aux_binary is aux_binary
+    assert cfg.training.class_weighting == "sqrt_inv_freq"
+    assert float(cfg.training.aux_binary_weight) == aux_weight
+    assert cfg.training.max_epochs == 30
+    assert cfg.training.batch_size == 64

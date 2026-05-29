@@ -14,18 +14,12 @@ def pad_collate(batch: list[dict]) -> dict:
     lengths = torch.stack([sample["length"] for sample in batch])
     max_length = int(lengths.max().item())
 
-    tof = batch[0]["tof"].new_zeros((len(batch), max_length, 5, 8, 8))
-    for i, sample in enumerate(batch):
-        length = int(sample["length"].item())
-        tof[i, :length] = sample["tof"]
-
     timesteps = torch.arange(max_length, device=lengths.device)
 
     collated = {
         "imu": pad_sequence([sample["imu"] for sample in batch], batch_first=True),
         "imu_derived": pad_sequence([sample["imu_derived"] for sample in batch], batch_first=True),
         "thm": pad_sequence([sample["thm"] for sample in batch], batch_first=True),
-        "tof": tof,
         "tof_stats": pad_sequence([sample["tof_stats"] for sample in batch], batch_first=True),
         "label": torch.stack([sample["label"] for sample in batch]),
         "has_thm": torch.stack([sample["has_thm"] for sample in batch]),
@@ -33,6 +27,12 @@ def pad_collate(batch: list[dict]) -> dict:
         "length": lengths,
         "attention_mask": timesteps.unsqueeze(0) < lengths.unsqueeze(1),
     }
+    if "tof" in batch[0]:
+        tof = batch[0]["tof"].new_zeros((len(batch), max_length, 5, 8, 8))
+        for i, sample in enumerate(batch):
+            length = int(sample["length"].item())
+            tof[i, :length] = sample["tof"]
+        collated["tof"] = tof
     if "demographics" in batch[0]:
         collated["demographics"] = torch.stack([sample["demographics"] for sample in batch])
     return collated
@@ -69,6 +69,7 @@ class ModalityDropout:
             < p
         )
         newly_dropped = dropped & batch[flag_key]
-        batch[key][dropped] = 0
+        if key in batch:
+            batch[key][dropped] = 0
         batch[flag_key][dropped] = False
         return newly_dropped
