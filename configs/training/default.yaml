@@ -1,6 +1,6 @@
 seed: 42
 fold: 0
-max_epochs: 10
+max_epochs: 60
 batch_size: 64
 num_workers: 4
 lr: 1.0e-3
@@ -13,8 +13,8 @@ plots_dir: plots
 overfit_batches: 0
 monitor: val_hierarchical_f1
 monitor_mode: max
-class_weighting: none
-aux_binary_weight: 0.0
+class_weighting: sqrt_inv_freq
+aux_binary_weight: 0.2
 scheduler: reduce_on_plateau # "none" | "reduce_on_plateau"
 scheduler_factor: 0.5
 scheduler_patience: 3
