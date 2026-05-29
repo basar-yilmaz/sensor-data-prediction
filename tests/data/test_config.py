@@ -34,6 +34,7 @@ def test_config_composes():
     assert cfg.training.monitor_mode == "max"
     assert cfg.training.class_weighting == "none"
     assert cfg.mlflow.tracking_uri == "http://127.0.0.1:8080"
+    assert cfg.data.auto_prepare is True
 
 
 def test_config_selects_temporal_model():
