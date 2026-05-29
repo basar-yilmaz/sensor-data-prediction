@@ -12,7 +12,15 @@ from bfrb_sensors.training.train import (
     check_mlflow_server,
     git_state,
     make_checkpoint_callback,
+    make_early_stopping_callback,
 )
+
+
+def test_make_early_stopping_callback_monitors_hierarchical_f1():
+    cb = make_early_stopping_callback(monitor="val_hierarchical_f1", mode="max", patience=10)
+    assert cb.monitor == "val_hierarchical_f1"
+    assert cb.mode == "max"
+    assert cb.patience == 10
 
 
 def test_make_checkpoint_callback_monitors_hierarchical_f1(tmp_path: Path):

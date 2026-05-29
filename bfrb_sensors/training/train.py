@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 import requests
 import torch
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
@@ -91,6 +91,10 @@ def make_checkpoint_callback(checkpoint_dir: Path, monitor: str, mode: str) -> M
         mode=mode,
         save_top_k=1,
     )
+
+
+def make_early_stopping_callback(monitor: str, mode: str, patience: int) -> EarlyStopping:
+    return EarlyStopping(monitor=monitor, mode=mode, patience=patience)
 
 
 def _datamodule_config(cfg: DictConfig) -> DataModuleConfig:
