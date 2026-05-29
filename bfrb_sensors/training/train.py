@@ -175,6 +175,12 @@ def train_from_config(cfg: DictConfig) -> None:
         hierarchy=hierarchy,
         class_weights=class_weights,
         aux_binary_weight=float(cfg.training.aux_binary_weight),
+        scheduler=str(cfg.training.scheduler),
+        scheduler_factor=float(cfg.training.scheduler_factor),
+        scheduler_patience=int(cfg.training.scheduler_patience),
+        scheduler_min_lr=float(cfg.training.scheduler_min_lr),
+        monitor=str(cfg.training.monitor),
+        monitor_mode=str(cfg.training.monitor_mode),
     )
 
     mlf_logger = MLFlowLogger(
@@ -196,6 +202,20 @@ def train_from_config(cfg: DictConfig) -> None:
     )
 
     history = MetricsHistory()
+    callbacks: list[Callback] = [checkpoint, history]
+    if bool(cfg.training.early_stopping):
+        callbacks.append(
+            make_early_stopping_callback(
+                monitor=str(cfg.training.monitor),
+                mode=str(cfg.training.monitor_mode),
+                patience=int(cfg.training.early_stopping_patience),
+            )
+        )
+        logger.info(
+            "Early stopping enabled: monitor=%s patience=%d",
+            str(cfg.training.monitor),
+            int(cfg.training.early_stopping_patience),
+        )
     trainer = pl.Trainer(
         max_epochs=int(cfg.training.max_epochs),
         accelerator=str(cfg.training.accelerator),
@@ -203,7 +223,7 @@ def train_from_config(cfg: DictConfig) -> None:
         precision=cfg.training.precision,
         overfit_batches=float(cfg.training.overfit_batches),
         logger=mlf_logger,
-        callbacks=[checkpoint, history],
+        callbacks=callbacks,
         deterministic=True,
     )
     logger.info("Starting training for %d epochs", int(cfg.training.max_epochs))
