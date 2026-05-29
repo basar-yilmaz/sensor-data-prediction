@@ -14,7 +14,14 @@ def masked_mean_pool(x: torch.Tensor, attention_mask: torch.Tensor) -> torch.Ten
 
 
 class BaselineMLPClassifier(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, num_classes: int, dropout: float) -> None:
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        num_classes: int,
+        dropout: float,
+        aux_binary: bool = False,
+    ) -> None:
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -29,6 +36,7 @@ class BaselineMLPClassifier(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, num_classes),
         )
+        self.binary_head = nn.Linear(hidden_dim, 2) if aux_binary else None
 
     def forward(self, batch: dict[str, torch.Tensor]) -> ModelOutput:
         x = torch.cat(
@@ -37,4 +45,5 @@ class BaselineMLPClassifier(nn.Module):
         )
         encoded = self.encoder(x)
         pooled = masked_mean_pool(encoded, batch["attention_mask"])
-        return ModelOutput(logits=self.classifier(pooled))
+        binary_logits = self.binary_head(pooled) if self.binary_head is not None else None
+        return ModelOutput(logits=self.classifier(pooled), binary_logits=binary_logits)

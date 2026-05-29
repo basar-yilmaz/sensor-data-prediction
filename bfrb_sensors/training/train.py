@@ -145,6 +145,7 @@ def train_from_config(cfg: DictConfig) -> None:
         weight_decay=float(cfg.training.weight_decay),
         hierarchy=hierarchy,
         class_weights=class_weights,
+        aux_binary_weight=float(cfg.training.aux_binary_weight),
     )
 
     mlf_logger = MLFlowLogger(

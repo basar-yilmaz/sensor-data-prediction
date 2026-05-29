@@ -70,6 +70,7 @@ class TemporalConvGRUClassifier(nn.Module):
         dropout: float,
         num_conv_blocks: int = 2,
         gru_layers: int = 1,
+        aux_binary: bool = False,
     ) -> None:
         super().__init__()
         if hidden_dim % 2 != 0:
@@ -104,6 +105,7 @@ class TemporalConvGRUClassifier(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, num_classes),
         )
+        self.binary_head = nn.Linear(hidden_dim, 2) if aux_binary else None
 
     def forward(self, batch: dict[str, torch.Tensor]) -> ModelOutput:
         x = torch.cat(
@@ -115,4 +117,5 @@ class TemporalConvGRUClassifier(nn.Module):
             x = block(x)
         x, _ = self.gru(x)
         pooled = self.pool(x, batch["attention_mask"])
-        return ModelOutput(logits=self.classifier(pooled))
+        binary_logits = self.binary_head(pooled) if self.binary_head is not None else None
+        return ModelOutput(logits=self.classifier(pooled), binary_logits=binary_logits)

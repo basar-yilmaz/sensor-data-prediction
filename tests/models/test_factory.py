@@ -14,6 +14,7 @@ def test_build_model_returns_baseline():
             "hidden_dim": 16,
             "num_classes": 18,
             "dropout": 0.0,
+            "aux_binary": False,
         }
     )
     assert isinstance(build_model(cfg), BaselineMLPClassifier)
@@ -29,6 +30,7 @@ def test_build_model_returns_temporal():
             "dropout": 0.0,
             "num_conv_blocks": 2,
             "gru_layers": 1,
+            "aux_binary": False,
         }
     )
     assert isinstance(build_model(cfg), TemporalConvGRUClassifier)
