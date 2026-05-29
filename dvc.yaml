@@ -28,6 +28,8 @@ stages:
     cmd: uv run bfrb splits data.splits.prepared_dir=${splits.prepared_dir}
       data.splits.n_folds=${splits.n_folds}
       data.splits.seed=${seed}
+      data.splits.group_col=${splits.group_col}
+      data.splits.stratify_col=${splits.stratify_col}
       data.splits.force=${splits.force}
     deps:
       - ${splits.prepared_dir}/index.parquet

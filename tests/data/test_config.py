@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from hydra import compose, initialize_config_dir
 
+from bfrb_sensors.commands import _splits_config_from_hydra
+
 
 def test_config_composes():
     config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
@@ -38,6 +40,26 @@ def test_config_composes():
     assert cfg.training.class_weighting == "none"
     assert cfg.mlflow.tracking_uri == "http://127.0.0.1:8080"
     assert cfg.data.auto_prepare is True
+
+
+def test_splits_config_maps_force_override():
+    config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
+    with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
+        cfg = compose(config_name="config", overrides=["data.splits.force=true"])
+
+    splits_cfg = _splits_config_from_hydra(cfg)
+
+    assert splits_cfg.force is True
+    assert splits_cfg.group_col == "subject_id"
+    assert splits_cfg.stratify_col == "gesture"
+
+
+def test_dvc_splits_command_passes_tracked_split_columns():
+    dvc_yaml = Path(__file__).resolve().parents[2] / "dvc.yaml"
+    contents = dvc_yaml.read_text()
+
+    assert "data.splits.group_col=${splits.group_col}" in contents
+    assert "data.splits.stratify_col=${splits.stratify_col}" in contents
 
 
 def test_config_selects_temporal_model():
