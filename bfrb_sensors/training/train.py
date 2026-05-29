@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytorch_lightning as pl
@@ -17,7 +18,7 @@ from pytorch_lightning.loggers import MLFlowLogger
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
 from bfrb_sensors.data.download import download_data, ensure_prepared_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
-from bfrb_sensors.data.splits import load_split_fold
+from bfrb_sensors.data.splits import load_split_file, load_split_fold
 from bfrb_sensors.models.factory import build_model
 from bfrb_sensors.training.class_weights import compute_class_weights
 from bfrb_sensors.training.metrics import HierarchyMapping
@@ -107,6 +108,17 @@ def _datamodule_config(cfg: DictConfig) -> DataModuleConfig:
     )
 
 
+def _split_hyperparams(metadata: dict[str, Any]) -> dict[str, Any]:
+    return {f"split_{key}": value for key, value in metadata.items()}
+
+
+def _split_artifact_paths(cfg: DictConfig) -> list[Path]:
+    splits_path = Path(cfg["data"]["datamodule"]["prepared_dir"]) / "splits.json"
+    if splits_path.exists():
+        return [splits_path]
+    return []
+
+
 def train_from_config(cfg: DictConfig) -> None:
     # Use Tensor Cores for float32 matmuls on capable GPUs (no-op on CPU).
     torch.set_float32_matmul_precision("high")
@@ -128,6 +140,7 @@ def train_from_config(cfg: DictConfig) -> None:
             prepared_dir,
             require_demographics=cfg.data.prepare.demographics_csv is not None,
         )
+    split_payload = load_split_file(prepared_dir)
 
     pl.seed_everything(int(cfg.training.seed), workers=True)
     dm = BFRBDataModule(_datamodule_config(cfg))
@@ -167,6 +180,7 @@ def train_from_config(cfg: DictConfig) -> None:
     state = git_state()
     mlf_logger.log_hyperparams(OmegaConf.to_container(cfg, resolve=True))
     mlf_logger.log_hyperparams({"git_sha": state["sha"], "git_dirty": state["dirty"]})
+    mlf_logger.log_hyperparams(_split_hyperparams(split_payload["metadata"]))
     logger.info("Training at git sha %s (dirty=%s)", state["sha"], state["dirty"])
 
     run_checkpoint_dir = Path(cfg.training.checkpoint_dir) / mlf_logger.run_id
@@ -208,13 +222,15 @@ def _log_artifacts(
         logger.warning("No validation samples available; skipping plot generation")
         return
 
-    paths = write_training_plots(plots_dir, history.history, y_true=y_true, y_pred=y_pred)
+    plot_paths = write_training_plots(plots_dir, history.history, y_true=y_true, y_pred=y_pred)
+    paths = [*plot_paths]
     repo_root = Path(__file__).resolve().parents[2]
     dvc_lock = repo_root / "dvc.lock"
     if dvc_lock.exists():
         paths = [*paths, dvc_lock]
+    paths = [*paths, *_split_artifact_paths(cfg)]
 
-    logger.info("Wrote %d plots to %s", len(paths) - int(dvc_lock.exists()), plots_dir)
+    logger.info("Wrote %d plots to %s", len(plot_paths), plots_dir)
 
     run_id = mlf_logger.run_id
     for path in paths:
