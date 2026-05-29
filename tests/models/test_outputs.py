@@ -23,3 +23,13 @@ def test_baseline_returns_model_output():
     assert isinstance(out, ModelOutput)
     assert out.logits.shape == (4, 3)
     assert out.binary_logits is None
+
+
+def test_temporal_returns_model_output():
+    from bfrb_sensors.models.temporal import TemporalConvGRUClassifier
+
+    model = TemporalConvGRUClassifier(input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0)
+    out = model(_batch())
+    assert isinstance(out, ModelOutput)
+    assert out.logits.shape == (4, 3)
+    assert out.binary_logits is None
