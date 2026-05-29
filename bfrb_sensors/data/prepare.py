@@ -12,6 +12,11 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from bfrb_sensors.data.features import (
+    angular_velocity_and_distance,
+    remove_gravity_from_acc,
+    tof_per_sensor_stats,
+)
 from bfrb_sensors.data.label_encoder import build_label_encoder
 
 logger = logging.getLogger(__name__)
@@ -47,6 +52,10 @@ class PrepareConfig:
     orientation_col: str = "orientation"
     sequence_type_col: str = "sequence_type"
     expected_n_classes: int | None = None
+    gravity: float = 9.81
+    sample_hz: float = 200.0
+    quaternion_eps: float = 1e-8
+    tof_missing_sentinel: float = -1.0
 
 
 def _fill_nan(arr: np.ndarray) -> tuple[np.ndarray, int]:
@@ -119,6 +128,19 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
         tof_residual = 0
     tof = _reshape_tof(tof_filled)
 
+    acc = imu[:, 0:3]
+    quat = imu[:, [4, 5, 6, 3]]
+    linear_acc = remove_gravity_from_acc(acc, quat, gravity=cfg.gravity, eps=cfg.quaternion_eps)
+    angular_vel, angular_distance = angular_velocity_and_distance(
+        quat, sample_hz=cfg.sample_hz, eps=cfg.quaternion_eps
+    )
+    imu_derived = np.concatenate([linear_acc, angular_vel, angular_distance[:, None]], axis=1)
+
+    tof_stats_raw = tof_per_sensor_stats(
+        tof_raw.reshape(length, TOF_SENSORS, 8, 8), sentinel=cfg.tof_missing_sentinel
+    )
+    tof_stats, _ = _fill_nan(tof_stats_raw)
+
     if imu_residual or thm_residual or tof_residual:
         logger.warning(
             "Sequence %s had residual NaN after ffill/bfill (imu=%d, thm=%d, tof=%d); zero-filled",
@@ -155,6 +177,8 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
         "imu": imu.astype(np.float32),
         "thm": thm.astype(np.float32),
         "tof": tof.astype(np.float32),
+        "imu_derived": imu_derived.astype(np.float32),
+        "tof_stats": tof_stats.astype(np.float32),
     }
 
 
@@ -185,11 +209,15 @@ def _write_sequence_file(record: dict[str, object], sequences_dir: Path) -> None
     imu = record["imu"]
     thm = record["thm"]
     tof = record["tof"]
+    imu_derived = record["imu_derived"]
+    tof_stats = record["tof_stats"]
     table = pa.table(
         {
             "imu": [imu.tolist()],
             "thm": [thm.tolist()],
             "tof": [tof.tolist()],
+            "imu_derived": [imu_derived.tolist()],
+            "tof_stats": [tof_stats.tolist()],
         }
     )
     pq.write_table(table, path)

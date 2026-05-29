@@ -13,6 +13,10 @@ prepare:
   orientation_col: orientation
   sequence_type_col: sequence_type
   expected_n_classes: 18
+  gravity: 9.81
+  sample_hz: 200
+  quaternion_eps: 1.0e-8
+  tof_missing_sentinel: -1
 
 splits:
   prepared_dir: data/prepared

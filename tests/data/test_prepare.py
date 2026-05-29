@@ -142,3 +142,31 @@ def test_prepare_rejects_wrong_class_count(synthetic_raw_csv, tmp_path):
     )
     with pytest.raises(ValueError, match="expected 18 gesture classes"):
         prepare(cfg)
+
+
+def test_prepare_writes_imu_derived_and_tof_stats(synthetic_raw_csv, tmp_path):
+    spec = SyntheticSequenceSpec("only", "p01", "gesture_00", length=12)
+    raw_csv = synthetic_raw_csv([spec])
+    prepared_dir = _run_prepare(raw_csv, tmp_path)
+    payload = pq.read_table(prepared_dir / "sequences" / "only.parquet").to_pydict()
+
+    imu_derived = np.asarray(payload["imu_derived"][0])
+    tof_stats = np.asarray(payload["tof_stats"][0])
+    assert imu_derived.shape == (12, 7)
+    assert tof_stats.shape == (12, 20)
+    assert np.isfinite(imu_derived).all()
+    assert np.isfinite(tof_stats).all()
+
+
+def test_prepare_leaves_raw_modalities_unchanged(synthetic_raw_csv, tmp_path):
+    spec = SyntheticSequenceSpec("only", "p01", "gesture_00", length=12)
+    raw_csv = synthetic_raw_csv([spec])
+    prepared_dir = _run_prepare(raw_csv, tmp_path)
+    payload = pq.read_table(prepared_dir / "sequences" / "only.parquet").to_pydict()
+
+    imu = np.asarray(payload["imu"][0])
+    thm = np.asarray(payload["thm"][0])
+    tof = np.asarray(payload["tof"][0])
+    assert imu.shape == (12, 7)
+    assert thm.shape == (12, 5)
+    assert tof.shape == (12, 5, 8, 8)

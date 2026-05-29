@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from tests.data.conftest import IMU_COLS, N_TOF, THM_COLS, SyntheticSequenceSpec
@@ -38,3 +39,12 @@ def test_synthetic_csv_respects_missing_modalities(synthetic_raw_csv):
     seq_b = df[df["sequence_id"] == "s_b"]
     assert seq_a.filter(like="tof_").isna().all().all()
     assert seq_b.filter(like="thm_").isna().all().all()
+
+
+def test_synthetic_quaternions_are_unit_norm(synthetic_raw_csv):
+    spec = SyntheticSequenceSpec("q1", "p01", "gesture_00", length=8)
+    csv_path = synthetic_raw_csv([spec])
+    df = pd.read_csv(csv_path)
+    quat = df[["rot_x", "rot_y", "rot_z", "rot_w"]].to_numpy()
+    norms = np.linalg.norm(quat, axis=1)
+    np.testing.assert_allclose(norms, np.ones_like(norms), atol=1e-6)

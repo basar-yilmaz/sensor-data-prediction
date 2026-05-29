@@ -3,16 +3,22 @@ stages:
   prepare:
     cmd: uv run bfrb prepare data.prepare.raw_csv=data/raw/train.csv
       data.prepare.prepared_dir=data/prepared data.prepare.min_length=10
-      data.prepare.nan_threshold=0.5
+      data.prepare.nan_threshold=0.5 data.prepare.gravity=9.81
+      data.prepare.sample_hz=200 data.prepare.quaternion_eps=1e-08
+      data.prepare.tof_missing_sentinel=-1
     deps:
+    - path: bfrb_sensors/data/features.py
+      hash: md5
+      md5: 458011b921a674f1159f0560eadb13fc
+      size: 4103
     - path: bfrb_sensors/data/label_encoder.py
       hash: md5
       md5: cefbcc9a9031342403c51708f4131f71
       size: 2014
     - path: bfrb_sensors/data/prepare.py
       hash: md5
-      md5: f55cefce1ec7f70db61c099ade667f1d
-      size: 8948
+      md5: 02cf3426371862d629dd983a3cedf91e
+      size: 10049
     - path: data/raw/train.csv
       hash: md5
       md5: 72937e5532c5c685afc07b93ce55ac80
@@ -32,6 +38,10 @@ stages:
           orientation_col: orientation
           sequence_type_col: sequence_type
           expected_n_classes: 18
+          gravity: 9.81
+          sample_hz: 200
+          quaternion_eps: 1e-08
+          tof_missing_sentinel: -1
     outs:
     - path: data/prepared/index.parquet
       hash: md5
@@ -43,8 +53,8 @@ stages:
       size: 521
     - path: data/prepared/sequences
       hash: md5
-      md5: 03ab78fe940870ae43740f2aa42bf45a.dir
-      size: 168658214
+      md5: aa53c2955536efae7b9cf6f59474a94a.dir
+      size: 251599837
       nfiles: 8101
   splits:
     cmd: uv run bfrb splits data.splits.prepared_dir=data/prepared

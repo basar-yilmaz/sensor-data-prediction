@@ -220,6 +220,7 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pytorch-lightning" },
     { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "torch", version = "2.12.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.12.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
 ]
@@ -245,6 +246,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=15,<19" },
     { name = "pytorch-lightning", specifier = ">=2.2,<3" },
     { name = "scikit-learn", specifier = ">=1.4,<2" },
+    { name = "scipy", specifier = ">=1.10,<2" },
     { name = "torch", specifier = ">=2.2,<3", index = "https://download.pytorch.org/whl/cpu" },
 ]
 
