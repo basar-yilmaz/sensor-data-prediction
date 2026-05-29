@@ -65,3 +65,47 @@ def test_training_step_with_aux_binary_head():
     loss = module.training_step(_batch(), 0)
     assert loss.ndim == 0
     assert torch.isfinite(loss)
+
+
+def _module(scheduler: str = "none", **kwargs) -> BFRBClassificationModule:
+    return BFRBClassificationModule(
+        model=BaselineMLPClassifier(input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0),
+        num_classes=3,
+        lr=1e-3,
+        weight_decay=0.0,
+        hierarchy=_mapping(),
+        scheduler=scheduler,
+        **kwargs,
+    )
+
+
+def test_configure_optimizers_without_scheduler_returns_bare_optimizer():
+    module = _module(scheduler="none")
+
+    result = module.configure_optimizers()
+
+    assert isinstance(result, torch.optim.Optimizer)
+
+
+def test_configure_optimizers_with_reduce_on_plateau_returns_scheduler_dict():
+    module = _module(
+        scheduler="reduce_on_plateau",
+        scheduler_factor=0.5,
+        scheduler_patience=3,
+        scheduler_min_lr=1e-6,
+        monitor="val_hierarchical_f1",
+        monitor_mode="max",
+    )
+
+    result = module.configure_optimizers()
+
+    assert isinstance(result, dict)
+    assert isinstance(result["optimizer"], torch.optim.Optimizer)
+    lr_scheduler = result["lr_scheduler"]
+    assert lr_scheduler["monitor"] == "val_hierarchical_f1"
+    scheduler = lr_scheduler["scheduler"]
+    assert isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
+    assert scheduler.mode == "max"
+    assert scheduler.factor == 0.5
+    assert scheduler.patience == 3
+    assert scheduler.min_lrs == [1e-6]
