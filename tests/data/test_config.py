@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from hydra import compose, initialize_config_dir
 
 
@@ -59,3 +60,30 @@ def test_config_selects_temporal_tof_model():
     assert cfg.model.name == "temporal_conv_gru"
     assert cfg.model.use_tof_raw is True
     assert cfg.model.tof_embed_dim == 32
+
+
+@pytest.mark.parametrize(
+    ("experiment", "aux_binary", "aux_weight"),
+    [
+        ("tof_no_demo", False, 0.0),
+        ("tof_no_demo_aux_01", True, 0.1),
+        ("tof_no_demo_aux_02", True, 0.2),
+        ("tof_no_demo_aux_03", True, 0.3),
+        ("tof_no_demo_aux_05", True, 0.5),
+    ],
+)
+def test_config_selects_named_training_experiments(
+    experiment: str, aux_binary: bool, aux_weight: float
+):
+    config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
+    with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
+        cfg = compose(config_name="config", overrides=[f"+experiment={experiment}"])
+
+    assert cfg.model.name == "temporal_conv_gru"
+    assert cfg.model.use_tof_raw is True
+    assert cfg.model.use_demographics is False
+    assert cfg.model.aux_binary is aux_binary
+    assert cfg.training.class_weighting == "sqrt_inv_freq"
+    assert float(cfg.training.aux_binary_weight) == aux_weight
+    assert cfg.training.max_epochs == 30
+    assert cfg.training.batch_size == 64

@@ -191,5 +191,22 @@ uv run bfrb train model=temporal_conv_gru                              # A
 uv run bfrb train model=temporal_conv_gru model.use_demographics=true  # B
 ```
 
+For repeated experiment configs, use the named Hydra experiment group instead of
+rewriting long override lists:
+
+```bash
+# Current raw-ToF, no-demographics baseline
+uv run bfrb train +experiment=tof_no_demo
+
+# Auxiliary binary loss sweep
+uv run bfrb train +experiment=tof_no_demo_aux_01
+uv run bfrb train +experiment=tof_no_demo_aux_02
+uv run bfrb train +experiment=tof_no_demo_aux_03
+uv run bfrb train +experiment=tof_no_demo_aux_05
+
+# Keep the named config, but vary fold/seed when needed
+uv run bfrb train +experiment=tof_no_demo training.fold=1 training.seed=123
+```
+
 After training, metric/loss curves and a confusion matrix are written to `plots/`
 and logged to MLflow alongside the run's hyperparameters and git commit.

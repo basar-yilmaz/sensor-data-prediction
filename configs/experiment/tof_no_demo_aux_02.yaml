@@ -1,0 +1,13 @@
+# @package _global_
+defaults:
+  - override /model: temporal_conv_gru_tof
+
+model:
+  use_demographics: false
+  aux_binary: true
+
+training:
+  class_weighting: sqrt_inv_freq
+  aux_binary_weight: 0.2
+  max_epochs: 30
+  batch_size: 64
