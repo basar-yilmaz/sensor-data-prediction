@@ -103,6 +103,7 @@ def _datamodule_config(cfg: DictConfig) -> DataModuleConfig:
         p_tof=float(cfg.data.datamodule.p_tof),
         pin_memory=bool(cfg.data.datamodule.pin_memory),
         persistent_workers=bool(cfg.data.datamodule.persistent_workers),
+        load_tof_raw=bool(cfg.model.use_tof_raw),
     )
 
 

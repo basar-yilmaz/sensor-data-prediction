@@ -35,6 +35,7 @@ class DataModuleConfig:
     p_tof: float = 0.5
     pin_memory: bool = True
     persistent_workers: bool = True
+    load_tof_raw: bool = True
 
 
 def _seed_worker(worker_id: int) -> None:
@@ -118,6 +119,7 @@ class BFRBDataModule(pl.LightningDataModule):
                 scaler=scaler,
                 label_encoder=label_encoder,
                 demographics_lookup=demographics_lookup,
+                load_tof_raw=self.cfg.load_tof_raw,
             )
             self.val_dataset = BFRBDataset(
                 prepared_dir=prepared_dir,
@@ -125,6 +127,7 @@ class BFRBDataModule(pl.LightningDataModule):
                 scaler=scaler,
                 label_encoder=label_encoder,
                 demographics_lookup=demographics_lookup,
+                load_tof_raw=self.cfg.load_tof_raw,
             )
 
     def train_dataloader(self) -> DataLoader:

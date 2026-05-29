@@ -85,6 +85,31 @@ def test_val_dataloader_does_not_apply_modality_dropout(tmp_path: Path, syntheti
     assert torch.count_nonzero(batch["tof"]) > 0
 
 
+def test_datamodule_can_skip_raw_tof_loading(tmp_path: Path, synthetic_raw_csv):
+    prepared_dir, artifacts_dir = _prepared_fixture(tmp_path, synthetic_raw_csv)
+    dm = BFRBDataModule(
+        DataModuleConfig(
+            prepared_dir=prepared_dir,
+            artifacts_dir=artifacts_dir,
+            fold_idx=0,
+            batch_size=2,
+            num_workers=0,
+            p_thm=0.0,
+            p_tof=1.0,
+            load_tof_raw=False,
+        )
+    )
+
+    dm.prepare_data()
+    dm.setup("fit")
+    batch = next(iter(dm.train_dataloader()))
+
+    assert "tof" not in batch
+    assert "tof_stats" in batch
+    assert not batch["has_tof"].any()
+    assert torch.count_nonzero(batch["tof_stats"]) == 0
+
+
 def test_train_collate_function_is_pickleable(tmp_path: Path, synthetic_raw_csv):
     prepared_dir, artifacts_dir = _prepared_fixture(tmp_path, synthetic_raw_csv)
     dm = BFRBDataModule(
