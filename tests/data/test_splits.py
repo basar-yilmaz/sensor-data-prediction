@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from bfrb_sensors.data.splits import SplitsConfig, make_splits
 
@@ -67,9 +68,9 @@ def test_splits_cover_all_sequences(tmp_path: Path):
         assert set(fold["train"]).isdisjoint(set(fold["val"]))
 
 
-def test_splits_are_deterministic(tmp_path: Path):
+def test_splits_are_deterministic_when_forced(tmp_path: Path):
     prepared_dir = _build_index(tmp_path)
-    cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42)
+    cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42, force=True)
     make_splits(cfg)
     first = (prepared_dir / "splits.json").read_text()
 
@@ -85,3 +86,35 @@ def test_splits_have_expected_count(tmp_path: Path):
 
     splits = json.loads((prepared_dir / "splits.json").read_text())
     assert sorted(splits.keys()) == ["0", "1", "2", "3", "4"]
+
+
+def test_splits_write_versioned_metadata_schema(tmp_path: Path):
+    prepared_dir = _build_index(tmp_path)
+    cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42)
+
+    make_splits(cfg)
+
+    payload = json.loads((prepared_dir / "splits.json").read_text())
+    assert sorted(payload.keys()) == ["folds", "metadata"]
+    assert payload["metadata"] == {
+        "version": 1,
+        "algorithm": "StratifiedGroupKFold",
+        "n_folds": 5,
+        "seed": 42,
+        "shuffle": True,
+        "group_col": "subject_id",
+        "stratify_col": "gesture",
+        "sequence_count": 360,
+        "index_hash": payload["metadata"]["index_hash"],
+    }
+    assert len(payload["metadata"]["index_hash"]) == 64
+    assert sorted(payload["folds"].keys()) == ["0", "1", "2", "3", "4"]
+
+
+def test_splits_refuse_to_overwrite_without_force(tmp_path: Path):
+    prepared_dir = _build_index(tmp_path)
+    cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42)
+    make_splits(cfg)
+
+    with pytest.raises(FileExistsError, match="splits.json already exists"):
+        make_splits(cfg)
