@@ -49,7 +49,7 @@ def make_splits(cfg: SplitsConfig) -> None:
             f"{splits_path} already exists; pass data.splits.force=true to regenerate folds."
         )
 
-    index = pd.read_parquet(index_path)
+    index = pd.read_parquet(index_path).sort_values("sequence_id").reset_index(drop=True)
     logger.info(
         "Building %d-fold StratifiedGroupKFold splits over %d sequences, %d subjects",
         cfg.n_folds,

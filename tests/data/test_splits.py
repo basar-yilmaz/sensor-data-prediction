@@ -81,6 +81,19 @@ def test_splits_are_deterministic_when_forced(tmp_path: Path):
     assert first == second
 
 
+def test_splits_are_independent_of_index_row_order(tmp_path: Path):
+    ordered_dir = _build_index(tmp_path / "ordered")
+    reversed_dir = _build_index(tmp_path / "reversed")
+    reversed_index_path = reversed_dir / "index.parquet"
+    index = pd.read_parquet(reversed_index_path)
+    index.iloc[::-1].to_parquet(reversed_index_path, index=False)
+
+    make_splits(SplitsConfig(prepared_dir=ordered_dir, n_folds=5, seed=42))
+    make_splits(SplitsConfig(prepared_dir=reversed_dir, n_folds=5, seed=42))
+
+    assert (ordered_dir / "splits.json").read_text() == (reversed_dir / "splits.json").read_text()
+
+
 def test_splits_have_expected_count(tmp_path: Path):
     prepared_dir = _build_index(tmp_path)
     cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42)
