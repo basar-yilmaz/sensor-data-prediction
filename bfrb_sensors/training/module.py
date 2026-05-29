@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchmetrics.classification import BinaryF1Score, MulticlassAccuracy, MulticlassF1Score
 
+from bfrb_sensors.models.outputs import ModelOutput
 from bfrb_sensors.training.metrics import HierarchyMapping
 
 
@@ -26,13 +27,17 @@ class BFRBClassificationModule(pl.LightningModule):
         lr: float,
         weight_decay: float,
         hierarchy: HierarchyMapping,
+        class_weights: torch.Tensor | None = None,
+        aux_binary_weight: float = 0.0,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=["hierarchy", "model"])
+        self.save_hyperparameters(ignore=["hierarchy", "model", "class_weights"])
         self.model = model
         self.lr = lr
         self.weight_decay = weight_decay
         self.hierarchy = hierarchy
+        self.aux_binary_weight = aux_binary_weight
+        self.register_buffer("class_weights", class_weights)
         self.val_accuracy = MulticlassAccuracy(num_classes=num_classes, average="micro")
         self.val_macro_f1_18 = MulticlassF1Score(num_classes=num_classes, average="macro")
         self.val_binary_f1 = BinaryF1Score()
@@ -40,19 +45,26 @@ class BFRBClassificationModule(pl.LightningModule):
             num_classes=hierarchy.n_collapsed_classes, average="macro"
         )
 
-    def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(self, batch: dict[str, torch.Tensor]) -> ModelOutput:
         return self.model(batch)
 
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        logits = self(batch)
-        loss = F.cross_entropy(logits, batch["label"])
+        out = self(batch)
+        loss = F.cross_entropy(out.logits, batch["label"], weight=self.class_weights)
+        if out.binary_logits is not None and self.aux_binary_weight > 0:
+            binary_labels = self.hierarchy.to_binary(batch["label"])
+            aux_loss = F.cross_entropy(out.binary_logits, binary_labels)
+            self.log("train_loss_main", loss, on_step=False, on_epoch=True)
+            self.log("train_loss_aux", aux_loss, on_step=False, on_epoch=True)
+            loss = loss + self.aux_binary_weight * aux_loss
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> None:
-        logits = self(batch)
+        out = self(batch)
+        logits = out.logits
         labels = batch["label"]
-        loss = F.cross_entropy(logits, labels)
+        loss = F.cross_entropy(logits, labels, weight=self.class_weights)
         preds = logits.argmax(dim=1)
         binary_labels = self.hierarchy.to_binary(labels)
         binary_preds = self.hierarchy.to_binary(preds)

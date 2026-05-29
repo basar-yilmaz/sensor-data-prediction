@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 from pathlib import Path
@@ -18,6 +19,7 @@ from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
 from bfrb_sensors.data.download import download_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
 from bfrb_sensors.models.factory import build_model
+from bfrb_sensors.training.class_weights import compute_class_weights
 from bfrb_sensors.training.metrics import HierarchyMapping
 from bfrb_sensors.training.module import BFRBClassificationModule
 from bfrb_sensors.training.plots import write_training_plots
@@ -57,7 +59,7 @@ def _collect_val_predictions(module: pl.LightningModule, dataloader) -> tuple[li
     y_true: list[int] = []
     y_pred: list[int] = []
     for batch in dataloader:
-        logits = module(batch)
+        logits = module(batch).logits
         y_pred.extend(logits.argmax(dim=1).tolist())
         y_true.extend(batch["label"].tolist())
     return y_true, y_pred
@@ -123,6 +125,17 @@ def train_from_config(cfg: DictConfig) -> None:
     encoder = LabelEncoder.load(prepared_dir / "label_encoder.json")
     hierarchy = HierarchyMapping.from_index(index, encoder)
 
+    splits = json.loads((prepared_dir / "splits.json").read_text())
+    train_sequence_ids = splits[str(int(cfg.training.fold))]["train"]
+    logger.info("Class weighting scheme: %s", cfg.training.class_weighting)
+    class_weights = compute_class_weights(
+        index,
+        encoder,
+        train_sequence_ids,
+        scheme=str(cfg.training.class_weighting),
+        num_classes=int(cfg.model.num_classes),
+    )
+
     model = build_model(cfg.model)
     logger.info("Built model %r", str(cfg.model.name))
     module = BFRBClassificationModule(
@@ -131,6 +144,8 @@ def train_from_config(cfg: DictConfig) -> None:
         lr=float(cfg.training.lr),
         weight_decay=float(cfg.training.weight_decay),
         hierarchy=hierarchy,
+        class_weights=class_weights,
+        aux_binary_weight=float(cfg.training.aux_binary_weight),
     )
 
     mlf_logger = MLFlowLogger(

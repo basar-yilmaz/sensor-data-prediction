@@ -13,3 +13,5 @@ plots_dir: plots
 overfit_batches: 0
 monitor: val_hierarchical_f1
 monitor_mode: max
+class_weighting: none
+aux_binary_weight: 0.0

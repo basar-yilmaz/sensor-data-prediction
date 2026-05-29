@@ -48,3 +48,20 @@ def test_training_step_returns_loss():
 
     assert loss.ndim == 0
     assert torch.isfinite(loss)
+
+
+@pytest.mark.filterwarnings("ignore:You are trying to `self.log\\(\\)`")
+def test_training_step_with_aux_binary_head():
+    module = BFRBClassificationModule(
+        model=BaselineMLPClassifier(
+            input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0, aux_binary=True
+        ),
+        num_classes=3,
+        lr=1e-3,
+        weight_decay=0.0,
+        hierarchy=_mapping(),
+        aux_binary_weight=0.3,
+    )
+    loss = module.training_step(_batch(), 0)
+    assert loss.ndim == 0
+    assert torch.isfinite(loss)

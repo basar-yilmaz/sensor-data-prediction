@@ -7,6 +7,17 @@ from bfrb_sensors.models.temporal import (
 )
 
 
+def _batch(batch_size: int = 4, timesteps: int = 6) -> dict[str, torch.Tensor]:
+    return {
+        "imu": torch.randn(batch_size, timesteps, 7),
+        "imu_derived": torch.randn(batch_size, timesteps, 7),
+        "thm": torch.randn(batch_size, timesteps, 5),
+        "tof": torch.randn(batch_size, timesteps, 5, 8, 8),
+        "tof_stats": torch.randn(batch_size, timesteps, 20),
+        "attention_mask": torch.ones(batch_size, timesteps, dtype=torch.bool),
+    }
+
+
 def test_attention_pool_ignores_padded_positions():
     pool = AttentionPool(hidden_dim=8, dropout=0.0).eval()
     valid = torch.randn(2, 3, 8)
@@ -54,6 +65,29 @@ def test_temporal_conv_gru_returns_class_logits():
     }
 
     with torch.no_grad():
-        logits = model(batch)
+        out = model(batch)
 
-    assert logits.shape == (3, 18)
+    assert out.logits.shape == (3, 18)
+
+
+def test_temporal_aux_binary_head_emits_binary_logits():
+    model = TemporalConvGRUClassifier(
+        input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0, aux_binary=True
+    )
+    out = model(_batch())
+    assert out.logits.shape == (4, 3)
+    assert out.binary_logits is not None
+    assert out.binary_logits.shape == (4, 2)
+
+
+def test_temporal_with_raw_tof_branch():
+    model = TemporalConvGRUClassifier(
+        input_dim=39,
+        hidden_dim=16,
+        num_classes=3,
+        dropout=0.0,
+        use_tof_raw=True,
+        tof_embed_dim=8,
+    )
+    out = model(_batch())
+    assert out.logits.shape == (4, 3)
