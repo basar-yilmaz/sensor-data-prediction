@@ -27,6 +27,7 @@ def test_config_composes():
     assert cfg.data.prepare.tof_missing_sentinel == -1
     assert cfg.data.splits.n_folds == 5
     assert cfg.data.splits.prepared_dir == "data/prepared"
+    assert cfg.data.splits.force is False
     assert cfg.data.datamodule.batch_size == 32
     assert cfg.data.datamodule.artifacts_dir == "artifacts"
     assert cfg.model.name == "baseline_mlp"

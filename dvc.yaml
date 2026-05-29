@@ -28,6 +28,7 @@ stages:
     cmd: uv run bfrb splits data.splits.prepared_dir=${splits.prepared_dir}
       data.splits.n_folds=${splits.n_folds}
       data.splits.seed=${seed}
+      data.splits.force=${splits.force}
     deps:
       - ${splits.prepared_dir}/index.parquet
       - bfrb_sensors/data/splits.py
