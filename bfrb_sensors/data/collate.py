@@ -21,7 +21,7 @@ def pad_collate(batch: list[dict]) -> dict:
 
     timesteps = torch.arange(max_length, device=lengths.device)
 
-    return {
+    collated = {
         "imu": pad_sequence([sample["imu"] for sample in batch], batch_first=True),
         "imu_derived": pad_sequence([sample["imu_derived"] for sample in batch], batch_first=True),
         "thm": pad_sequence([sample["thm"] for sample in batch], batch_first=True),
@@ -33,6 +33,9 @@ def pad_collate(batch: list[dict]) -> dict:
         "length": lengths,
         "attention_mask": timesteps.unsqueeze(0) < lengths.unsqueeze(1),
     }
+    if "demographics" in batch[0]:
+        collated["demographics"] = torch.stack([sample["demographics"] for sample in batch])
+    return collated
 
 
 class ModalityDropout:

@@ -15,6 +15,7 @@ def _batch(batch_size: int = 4, timesteps: int = 6) -> dict[str, torch.Tensor]:
         "tof": torch.randn(batch_size, timesteps, 5, 8, 8),
         "tof_stats": torch.randn(batch_size, timesteps, 20),
         "attention_mask": torch.ones(batch_size, timesteps, dtype=torch.bool),
+        "demographics": torch.randn(batch_size, 7),
     }
 
 
@@ -91,3 +92,33 @@ def test_temporal_with_raw_tof_branch():
     )
     out = model(_batch())
     assert out.logits.shape == (4, 3)
+
+
+def test_temporal_with_demographics_branch():
+    model = TemporalConvGRUClassifier(
+        input_dim=39,
+        hidden_dim=16,
+        num_classes=3,
+        dropout=0.0,
+        use_demographics=True,
+        meta_embed_dim=8,
+    )
+    out = model(_batch())
+    assert out.logits.shape == (4, 3)
+
+
+def test_temporal_demographics_composes_with_tof_and_aux():
+    model = TemporalConvGRUClassifier(
+        input_dim=39,
+        hidden_dim=16,
+        num_classes=3,
+        dropout=0.0,
+        use_tof_raw=True,
+        tof_embed_dim=8,
+        aux_binary=True,
+        use_demographics=True,
+        meta_embed_dim=8,
+    )
+    out = model(_batch())
+    assert out.logits.shape == (4, 3)
+    assert out.binary_logits.shape == (4, 2)

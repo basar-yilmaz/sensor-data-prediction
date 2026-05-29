@@ -20,12 +20,14 @@ class BFRBDataset(Dataset):
         scaler,
         label_encoder,
         transform=None,
+        demographics_lookup=None,
     ):
         self.prepared_dir = Path(prepared_dir)
         self.sequence_ids = list(sequence_ids)
         self.scaler = scaler
         self.label_encoder = label_encoder
         self.transform = transform
+        self.demographics_lookup = demographics_lookup
 
         index = pd.read_parquet(self.prepared_dir / "index.parquet")
         self._rows = index.set_index("sequence_id").loc[self.sequence_ids].to_dict(orient="index")
@@ -93,6 +95,11 @@ class BFRBDataset(Dataset):
             "has_tof": torch.tensor(has_tof, dtype=torch.bool),
             "length": torch.tensor(int(row["length"]), dtype=torch.long),
         }
+        if self.demographics_lookup is not None:
+            sample["demographics"] = torch.as_tensor(
+                self.demographics_lookup.vector(str(row["subject_id"])),
+                dtype=torch.float32,
+            )
         if self.transform is not None:
             sample = self.transform(sample)
         return sample

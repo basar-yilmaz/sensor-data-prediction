@@ -8,3 +8,5 @@ dropout: 0.2
 use_tof_raw: true
 tof_embed_dim: 32
 aux_binary: false
+use_demographics: false
+meta_embed_dim: 16
