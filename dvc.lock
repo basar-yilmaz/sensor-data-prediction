@@ -6,7 +6,12 @@ stages:
       data.prepare.nan_threshold=0.5 data.prepare.gravity=9.81
       data.prepare.sample_hz=200 data.prepare.quaternion_eps=1e-08
       data.prepare.tof_missing_sentinel=-1
+      data.prepare.demographics_csv=data/raw/train_demographics.csv
     deps:
+    - path: bfrb_sensors/data/demographics.py
+      hash: md5
+      md5: 5bef5f59f3c3dfe4149aa7a9d75c8d4c
+      size: 5998
     - path: bfrb_sensors/data/features.py
       hash: md5
       md5: 458011b921a674f1159f0560eadb13fc
@@ -17,12 +22,16 @@ stages:
       size: 2014
     - path: bfrb_sensors/data/prepare.py
       hash: md5
-      md5: 02cf3426371862d629dd983a3cedf91e
-      size: 10049
+      md5: e77b2f97cc6c42ade79fa20534bfbc53
+      size: 10595
     - path: data/raw/train.csv
       hash: md5
       md5: 72937e5532c5c685afc07b93ce55ac80
       size: 1121545963
+    - path: data/raw/train_demographics.csv
+      hash: md5
+      md5: 6c3a641ab9f43f1d3b4cf68c7b5e9139
+      size: 2923
     params:
       params.yaml:
         prepare:
@@ -42,7 +51,12 @@ stages:
           sample_hz: 200
           quaternion_eps: 1e-08
           tof_missing_sentinel: -1
+          demographics_csv: data/raw/train_demographics.csv
     outs:
+    - path: data/prepared/demographics.parquet
+      hash: md5
+      md5: 488bb829aac7159ae78601c6b7246129
+      size: 6953
     - path: data/prepared/index.parquet
       hash: md5
       md5: 79c460c62f8394941333aa4f40fec7dd
