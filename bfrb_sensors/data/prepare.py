@@ -143,8 +143,9 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
     )
     tof_stats, _ = _fill_nan(tof_stats_raw)
 
-    if imu_residual or thm_residual or tof_residual:
-        logger.warning(
+    had_residual_nan = bool(imu_residual or thm_residual or tof_residual)
+    if had_residual_nan:
+        logger.debug(
             "Sequence %s had residual NaN after ffill/bfill (imu=%d, thm=%d, tof=%d); zero-filled",
             sequence_id,
             imu_residual,
@@ -176,6 +177,7 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
         "frac_nan_imu": frac_nan_imu,
         "frac_nan_thm": frac_nan_thm,
         "frac_nan_tof": frac_nan_tof,
+        "had_residual_nan": had_residual_nan,
         "imu": imu.astype(np.float32),
         "thm": thm.astype(np.float32),
         "tof": tof.astype(np.float32),
@@ -295,6 +297,14 @@ def prepare(cfg: PrepareConfig) -> None:
         raise RuntimeError("prepare produced zero sequences; check input data and config")
 
     _write_index(records, prepared_dir)
+
+    n_residual = sum(1 for r in records if r["had_residual_nan"])
+    if n_residual:
+        logger.info(
+            "Zero-filled residual NaN in %d/%d sequences (per-sequence detail at DEBUG level)",
+            n_residual,
+            len(records),
+        )
 
     encoder = build_label_encoder(r["gesture"] for r in records)
     if cfg.expected_n_classes is not None and encoder.n_classes != cfg.expected_n_classes:
