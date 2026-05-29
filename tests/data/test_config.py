@@ -32,6 +32,7 @@ def test_config_composes():
     assert cfg.model.input_dim == 39
     assert cfg.training.monitor == "val_hierarchical_f1"
     assert cfg.training.monitor_mode == "max"
+    assert cfg.training.class_weighting == "none"
     assert cfg.mlflow.tracking_uri == "http://127.0.0.1:8080"
 
 

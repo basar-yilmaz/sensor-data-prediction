@@ -27,13 +27,15 @@ class BFRBClassificationModule(pl.LightningModule):
         lr: float,
         weight_decay: float,
         hierarchy: HierarchyMapping,
+        class_weights: torch.Tensor | None = None,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=["hierarchy", "model"])
+        self.save_hyperparameters(ignore=["hierarchy", "model", "class_weights"])
         self.model = model
         self.lr = lr
         self.weight_decay = weight_decay
         self.hierarchy = hierarchy
+        self.register_buffer("class_weights", class_weights)
         self.val_accuracy = MulticlassAccuracy(num_classes=num_classes, average="micro")
         self.val_macro_f1_18 = MulticlassF1Score(num_classes=num_classes, average="macro")
         self.val_binary_f1 = BinaryF1Score()
@@ -46,14 +48,14 @@ class BFRBClassificationModule(pl.LightningModule):
 
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         logits = self(batch).logits
-        loss = F.cross_entropy(logits, batch["label"])
+        loss = F.cross_entropy(logits, batch["label"], weight=self.class_weights)
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> None:
         logits = self(batch).logits
         labels = batch["label"]
-        loss = F.cross_entropy(logits, labels)
+        loss = F.cross_entropy(logits, labels, weight=self.class_weights)
         preds = logits.argmax(dim=1)
         binary_labels = self.hierarchy.to_binary(labels)
         binary_preds = self.hierarchy.to_binary(preds)
