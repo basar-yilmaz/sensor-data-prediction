@@ -141,9 +141,9 @@ class DemographicsLookup:
         mean = np.asarray(stats["mean"], dtype=np.float32)
         std = np.asarray(stats["std"], dtype=np.float32)
 
-        binary = demographics[list(BINARY_COLUMNS)].to_numpy(dtype=np.float32)
-        continuous = demographics[list(CONTINUOUS_COLUMNS)].to_numpy(dtype=np.float32)
-        normalized = (continuous - mean) / std
+        binary = demographics[list(BINARY_COLUMNS)].to_numpy(dtype=np.float64)
+        continuous = demographics[list(CONTINUOUS_COLUMNS)].to_numpy(dtype=np.float64)
+        normalized = (continuous - mean.astype(np.float64)) / std.astype(np.float64)
         vectors = np.concatenate([binary, normalized], axis=1).astype(np.float32)
 
         self._by_subject = {
