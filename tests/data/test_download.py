@@ -3,11 +3,12 @@ from __future__ import annotations
 import pytest
 
 from bfrb_sensors.data import download as download_module
-from bfrb_sensors.data.download import ensure_prepared_data
+from bfrb_sensors.data.download import download_data, ensure_prepared_data
 
 
 class _FakeRepo:
     reproduce_calls: list = []
+    pull_calls: list = []
 
     def __init__(self, root: str) -> None:
         self.root = root
@@ -21,11 +22,27 @@ class _FakeRepo:
     def reproduce(self, targets=None, **kwargs):
         _FakeRepo.reproduce_calls.append(targets)
 
+    def pull(self, targets=None, remote=None, **kwargs):
+        _FakeRepo.pull_calls.append({"targets": targets, "remote": remote})
+
 
 @pytest.fixture(autouse=True)
 def _reset_calls():
     _FakeRepo.reproduce_calls = []
+    _FakeRepo.pull_calls = []
     yield
+
+
+def test_download_data_forwards_targets(tmp_path, monkeypatch):
+    monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
+    download_data(tmp_path, remote="bfrb-data", targets=["data/raw/train.csv"])
+    assert _FakeRepo.pull_calls == [{"targets": ["data/raw/train.csv"], "remote": "bfrb-data"}]
+
+
+def test_download_data_full_pull_when_no_targets(tmp_path, monkeypatch):
+    monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
+    download_data(tmp_path, remote="bfrb-data")
+    assert _FakeRepo.pull_calls == [{"targets": None, "remote": "bfrb-data"}]
 
 
 def _make_prepared(tmp_path, *, index=True, splits=True, demographics=True):

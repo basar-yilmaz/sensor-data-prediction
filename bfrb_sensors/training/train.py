@@ -114,7 +114,10 @@ def train_from_config(cfg: DictConfig) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     prepared_dir = Path(cfg.data.datamodule.prepared_dir)
     logger.info("Ensuring prepared data is available via DVC")
-    download_data(repo_root=repo_root)
+    raw_targets = [str(cfg.data.prepare.raw_csv)]
+    if cfg.data.prepare.demographics_csv is not None:
+        raw_targets.append(str(cfg.data.prepare.demographics_csv))
+    download_data(repo_root=repo_root, targets=raw_targets)
     if bool(cfg.data.auto_prepare):
         ensure_prepared_data(
             repo_root,
