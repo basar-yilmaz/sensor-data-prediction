@@ -14,6 +14,12 @@ from torch.utils.data import DataLoader
 
 from bfrb_sensors.data.collate import ModalityDropout, pad_collate
 from bfrb_sensors.data.dataset import BFRBDataset
+from bfrb_sensors.data.demographics import (
+    DemographicsLookup,
+    demographics_stats_path,
+    fit_demographics_stats,
+    load_demographics_stats,
+)
 from bfrb_sensors.data.label_encoder import LabelEncoder, build_label_encoder
 from bfrb_sensors.data.scaler import ScalerConfig, fit_scaler, load_scaler, scaler_path
 
@@ -67,6 +73,20 @@ class BFRBDataModule(pl.LightningDataModule):
             splits = self._load_splits()
             fit_scaler(scaler_cfg, splits["train"])
 
+        demographics_parquet = prepared_dir / "demographics.parquet"
+        if demographics_parquet.exists():
+            stats_path = demographics_stats_path(self.cfg.artifacts_dir, self.cfg.fold_idx)
+            if not stats_path.exists():
+                splits = self._load_splits()
+                index = pd.read_parquet(prepared_dir / "index.parquet")
+                fit_demographics_stats(
+                    demographics_parquet,
+                    index,
+                    splits["train"],
+                    fold_idx=self.cfg.fold_idx,
+                    artifacts_dir=self.cfg.artifacts_dir,
+                )
+
     def setup(self, stage: str | None = None) -> None:
         splits = self._load_splits()
         prepared_dir = Path(self.cfg.prepared_dir)
@@ -79,18 +99,28 @@ class BFRBDataModule(pl.LightningDataModule):
 
         scaler = load_scaler(scaler_path(self._scaler_config()))
 
+        demographics_parquet = prepared_dir / "demographics.parquet"
+        demographics_lookup = None
+        if demographics_parquet.exists():
+            stats = load_demographics_stats(
+                demographics_stats_path(self.cfg.artifacts_dir, self.cfg.fold_idx)
+            )
+            demographics_lookup = DemographicsLookup(demographics_parquet, stats)
+
         if stage in (None, "fit", "train", "validate"):
             self.train_dataset = BFRBDataset(
                 prepared_dir=prepared_dir,
                 sequence_ids=splits["train"],
                 scaler=scaler,
                 label_encoder=label_encoder,
+                demographics_lookup=demographics_lookup,
             )
             self.val_dataset = BFRBDataset(
                 prepared_dir=prepared_dir,
                 sequence_ids=splits["val"],
                 scaler=scaler,
                 label_encoder=label_encoder,
+                demographics_lookup=demographics_lookup,
             )
 
     def train_dataloader(self) -> DataLoader:
