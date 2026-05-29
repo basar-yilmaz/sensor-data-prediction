@@ -41,9 +41,12 @@ class PrepareConfig:
     nan_threshold: float = 0.5
     verbose: bool = False
     sequence_id_col: str = "sequence_id"
-    subject_id_col: str = "subject_id"
+    subject_id_col: str = "subject"
     gesture_col: str = "gesture"
-    step_col: str = "step"
+    step_col: str = "sequence_counter"
+    orientation_col: str = "orientation"
+    sequence_type_col: str = "sequence_type"
+    expected_n_classes: int | None = None
 
 
 def _fill_nan(arr: np.ndarray) -> tuple[np.ndarray, int]:
@@ -69,6 +72,8 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
     sequence_id = str(seq_df[cfg.sequence_id_col].iloc[0])
     subject_id = str(seq_df[cfg.subject_id_col].iloc[0])
     gesture = str(seq_df[cfg.gesture_col].iloc[0])
+    orientation = str(seq_df[cfg.orientation_col].iloc[0])
+    sequence_type = str(seq_df[cfg.sequence_type_col].iloc[0])
     length = len(seq_df)
 
     if length < cfg.min_length:
@@ -139,6 +144,8 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
         "sequence_id": sequence_id,
         "subject_id": subject_id,
         "gesture": gesture,
+        "orientation": orientation,
+        "sequence_type": sequence_type,
         "length": length,
         "has_thm": has_thm,
         "has_tof": has_tof,
@@ -152,7 +159,14 @@ def _process_one_sequence(seq_df: pd.DataFrame, cfg: PrepareConfig) -> dict[str,
 
 
 def _validate_columns(df: pd.DataFrame, cfg: PrepareConfig) -> None:
-    required_meta = {cfg.sequence_id_col, cfg.subject_id_col, cfg.gesture_col, cfg.step_col}
+    required_meta = {
+        cfg.sequence_id_col,
+        cfg.subject_id_col,
+        cfg.gesture_col,
+        cfg.step_col,
+        cfg.orientation_col,
+        cfg.sequence_type_col,
+    }
     missing_meta = required_meta - set(df.columns)
     if missing_meta:
         raise ValueError(f"raw CSV missing metadata columns: {sorted(missing_meta)}")
@@ -188,6 +202,8 @@ def _write_index(records: list[dict[str, object]], prepared_dir: Path) -> None:
                 "sequence_id": r["sequence_id"],
                 "subject_id": r["subject_id"],
                 "gesture": r["gesture"],
+                "orientation": r["orientation"],
+                "sequence_type": r["sequence_type"],
                 "length": r["length"],
                 "has_thm": r["has_thm"],
                 "has_tof": r["has_tof"],
@@ -251,6 +267,11 @@ def prepare(cfg: PrepareConfig) -> None:
     _write_index(records, prepared_dir)
 
     encoder = build_label_encoder(r["gesture"] for r in records)
+    if cfg.expected_n_classes is not None and encoder.n_classes != cfg.expected_n_classes:
+        raise ValueError(
+            f"expected {cfg.expected_n_classes} gesture classes but prepare saw "
+            f"{encoder.n_classes}; check the raw CSV read and gesture column"
+        )
     encoder.save(prepared_dir / "label_encoder.json")
 
     elapsed = time.perf_counter() - start

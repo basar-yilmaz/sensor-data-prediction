@@ -39,6 +39,9 @@ def _prepare_config_from_hydra(cfg: DictConfig) -> PrepareConfig:
         subject_id_col=str(cfg.data.prepare.subject_id_col),
         gesture_col=str(cfg.data.prepare.gesture_col),
         step_col=str(cfg.data.prepare.step_col),
+        orientation_col=str(cfg.data.prepare.orientation_col),
+        sequence_type_col=str(cfg.data.prepare.sequence_type_col),
+        expected_n_classes=int(cfg.data.prepare.expected_n_classes),
     )
 
 

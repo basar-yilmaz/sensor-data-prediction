@@ -15,6 +15,11 @@ def test_config_composes():
     assert cfg.seed == 42
     assert cfg.data.prepare.min_length == 10
     assert cfg.data.prepare.raw_csv == "data/raw/train.csv"
+    assert cfg.data.prepare.subject_id_col == "subject"
+    assert cfg.data.prepare.step_col == "sequence_counter"
+    assert cfg.data.prepare.orientation_col == "orientation"
+    assert cfg.data.prepare.sequence_type_col == "sequence_type"
+    assert cfg.data.prepare.expected_n_classes == 18
     assert cfg.data.splits.n_folds == 5
     assert cfg.data.splits.prepared_dir == "data/prepared"
     assert cfg.data.datamodule.batch_size == 32

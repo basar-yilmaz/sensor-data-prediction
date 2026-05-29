@@ -1,0 +1,73 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: uv run bfrb prepare data.prepare.raw_csv=data/raw/train.csv
+      data.prepare.prepared_dir=data/prepared data.prepare.min_length=10
+      data.prepare.nan_threshold=0.5
+    deps:
+    - path: bfrb_sensors/data/label_encoder.py
+      hash: md5
+      md5: cefbcc9a9031342403c51708f4131f71
+      size: 2014
+    - path: bfrb_sensors/data/prepare.py
+      hash: md5
+      md5: f55cefce1ec7f70db61c099ade667f1d
+      size: 8948
+    - path: data/raw/train.csv
+      hash: md5
+      md5: 72937e5532c5c685afc07b93ce55ac80
+      size: 1121545963
+    params:
+      params.yaml:
+        prepare:
+          raw_csv: data/raw/train.csv
+          prepared_dir: data/prepared
+          min_length: 10
+          nan_threshold: 0.5
+          verbose: false
+          sequence_id_col: sequence_id
+          subject_id_col: subject
+          gesture_col: gesture
+          step_col: sequence_counter
+          orientation_col: orientation
+          sequence_type_col: sequence_type
+          expected_n_classes: 18
+    outs:
+    - path: data/prepared/index.parquet
+      hash: md5
+      md5: 79c460c62f8394941333aa4f40fec7dd
+      size: 89404
+    - path: data/prepared/label_encoder.json
+      hash: md5
+      md5: 18a27900c99082737fa1166794b15bee
+      size: 521
+    - path: data/prepared/sequences
+      hash: md5
+      md5: 03ab78fe940870ae43740f2aa42bf45a.dir
+      size: 168658214
+      nfiles: 8101
+  splits:
+    cmd: uv run bfrb splits data.splits.prepared_dir=data/prepared
+      data.splits.n_folds=5 data.splits.seed=42
+    deps:
+    - path: bfrb_sensors/data/splits.py
+      hash: md5
+      md5: f0e43b063bf46394c5ae6ce8aaf1aae7
+      size: 2365
+    - path: data/prepared/index.parquet
+      hash: md5
+      md5: 79c460c62f8394941333aa4f40fec7dd
+      size: 89404
+    params:
+      params.yaml:
+        seed: 42
+        splits:
+          prepared_dir: data/prepared
+          n_folds: 5
+          group_col: subject_id
+          stratify_col: gesture
+    outs:
+    - path: data/prepared/splits.json
+      hash: md5
+      md5: 3e7580a40f48bd64313c7ebef5407b9e
+      size: 810367

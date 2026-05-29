@@ -93,3 +93,52 @@ def test_prepare_writes_label_encoder(synthetic_raw_csv, default_specs, tmp_path
     prepared_dir = _run_prepare(raw_csv, tmp_path)
     encoder_path = prepared_dir / "label_encoder.json"
     assert encoder_path.exists()
+
+
+def test_prepare_index_has_orientation_and_sequence_type(synthetic_raw_csv, tmp_path):
+    specs = [
+        SyntheticSequenceSpec(
+            "s1",
+            "p01",
+            "gesture_00",
+            length=12,
+            orientation="Lie on Back",
+            sequence_type="Target",
+        ),
+        SyntheticSequenceSpec(
+            "s2",
+            "p02",
+            "gesture_01",
+            length=12,
+            orientation="Seated Straight",
+            sequence_type="Non-Target",
+        ),
+    ]
+    raw_csv = synthetic_raw_csv(specs)
+    prepared_dir = _run_prepare(raw_csv, tmp_path)
+    index = pq.read_table(prepared_dir / "index.parquet").to_pandas().set_index("sequence_id")
+
+    assert index.loc["s1", "orientation"] == "Lie on Back"
+    assert index.loc["s1", "sequence_type"] == "Target"
+    assert index.loc["s2", "orientation"] == "Seated Straight"
+    assert index.loc["s2", "sequence_type"] == "Non-Target"
+
+
+def test_prepare_rejects_wrong_class_count(synthetic_raw_csv, tmp_path):
+    import pytest
+
+    specs = [
+        SyntheticSequenceSpec("s1", "p01", "gesture_00", length=12),
+        SyntheticSequenceSpec("s2", "p01", "gesture_01", length=12),
+    ]
+    raw_csv = synthetic_raw_csv(specs)
+    prepared_dir = tmp_path / "prepared"
+    cfg = PrepareConfig(
+        raw_csv=raw_csv,
+        prepared_dir=prepared_dir,
+        min_length=5,
+        nan_threshold=0.5,
+        expected_n_classes=18,  # fixture only has 2 -> must raise
+    )
+    with pytest.raises(ValueError, match="expected 18 gesture classes"):
+        prepare(cfg)
