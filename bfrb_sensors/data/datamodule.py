@@ -73,7 +73,7 @@ class BFRBDataModule(pl.LightningDataModule):
             splits = self._load_splits()
             fit_scaler(scaler_cfg, splits["train"])
 
-        demographics_parquet = prepared_dir / "demographics.parquet"
+        demographics_parquet = self._demographics_parquet()
         if demographics_parquet.exists():
             stats_path = demographics_stats_path(self.cfg.artifacts_dir, self.cfg.fold_idx)
             if not stats_path.exists():
@@ -99,12 +99,16 @@ class BFRBDataModule(pl.LightningDataModule):
 
         scaler = load_scaler(scaler_path(self._scaler_config()))
 
-        demographics_parquet = prepared_dir / "demographics.parquet"
+        demographics_parquet = self._demographics_parquet()
         demographics_lookup = None
         if demographics_parquet.exists():
-            stats = load_demographics_stats(
-                demographics_stats_path(self.cfg.artifacts_dir, self.cfg.fold_idx)
-            )
+            stats_path = demographics_stats_path(self.cfg.artifacts_dir, self.cfg.fold_idx)
+            if not stats_path.exists():
+                raise FileNotFoundError(
+                    f"demographics stats not found at {stats_path}; "
+                    "call prepare_data() before setup() to fit fold-wise stats."
+                )
+            stats = load_demographics_stats(stats_path)
             demographics_lookup = DemographicsLookup(demographics_parquet, stats)
 
         if stage in (None, "fit", "train", "validate"):
@@ -148,6 +152,9 @@ class BFRBDataModule(pl.LightningDataModule):
             kwargs["worker_init_fn"] = _seed_worker
             kwargs["persistent_workers"] = self.cfg.persistent_workers
         return DataLoader(dataset, **kwargs)
+
+    def _demographics_parquet(self) -> Path:
+        return Path(self.cfg.prepared_dir) / "demographics.parquet"
 
     def _scaler_config(self) -> ScalerConfig:
         return ScalerConfig(
