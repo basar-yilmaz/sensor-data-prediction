@@ -52,6 +52,8 @@ def load_split_fold(prepared_dir: Path | str, fold_idx: int) -> dict[str, list[s
         raise ValueError(f"fold {fold_idx} in {path} must contain train and val lists")
     if not isinstance(fold["train"], list) or not isinstance(fold["val"], list):
         raise ValueError(f"fold {fold_idx} in {path} train and val entries must be lists")
+    if not all(isinstance(sequence_id, str) for sequence_id in fold["train"] + fold["val"]):
+        raise ValueError(f"fold {fold_idx} in {path} sequence IDs must be strings")
     return fold
 
 

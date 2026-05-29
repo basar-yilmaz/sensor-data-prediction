@@ -159,3 +159,18 @@ def test_load_split_fold_returns_selected_fold(tmp_path: Path):
     assert sorted(fold.keys()) == ["train", "val"]
     assert fold["train"]
     assert fold["val"]
+
+
+def test_load_split_fold_rejects_non_string_sequence_ids(tmp_path: Path):
+    prepared_dir = _build_index(tmp_path)
+    (prepared_dir / "splits.json").write_text(
+        json.dumps(
+            {
+                "metadata": {"version": 1},
+                "folds": {"0": {"train": [1], "val": [None]}},
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="sequence IDs must be strings"):
+        load_split_fold(prepared_dir, 0)
