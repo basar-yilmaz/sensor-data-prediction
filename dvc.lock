@@ -22,8 +22,8 @@ stages:
       size: 2014
     - path: bfrb_sensors/data/prepare.py
       hash: md5
-      md5: e77b2f97cc6c42ade79fa20534bfbc53
-      size: 10595
+      md5: 89d08fab368d91827ffafda6de13564e
+      size: 10960
     - path: data/raw/train.csv
       hash: md5
       md5: 72937e5532c5c685afc07b93ce55ac80
@@ -72,12 +72,13 @@ stages:
       nfiles: 8101
   splits:
     cmd: uv run bfrb splits data.splits.prepared_dir=data/prepared
-      data.splits.n_folds=5 data.splits.seed=42
+      data.splits.n_folds=5 data.splits.seed=42 data.splits.group_col=subject_id
+      data.splits.stratify_col=gesture data.splits.force=false
     deps:
     - path: bfrb_sensors/data/splits.py
       hash: md5
-      md5: f0e43b063bf46394c5ae6ce8aaf1aae7
-      size: 2365
+      md5: 67523c0fd02f5331ad47e9194663a16c
+      size: 5095
     - path: data/prepared/index.parquet
       hash: md5
       md5: 79c460c62f8394941333aa4f40fec7dd
@@ -90,8 +91,9 @@ stages:
           n_folds: 5
           group_col: subject_id
           stratify_col: gesture
+          force: false
     outs:
     - path: data/prepared/splits.json
       hash: md5
-      md5: 3e7580a40f48bd64313c7ebef5407b9e
-      size: 810367
+      md5: 49fd79f128f16e09349ffe723787da0d
+      size: 891764
