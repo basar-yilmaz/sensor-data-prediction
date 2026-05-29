@@ -42,7 +42,8 @@ def test_splits_are_subject_disjoint(tmp_path: Path):
     cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42)
     make_splits(cfg)
 
-    splits = json.loads((prepared_dir / "splits.json").read_text())
+    payload = json.loads((prepared_dir / "splits.json").read_text())
+    splits = payload["folds"]
     index = pd.read_parquet(prepared_dir / "index.parquet").set_index("sequence_id")
 
     for fold_idx, fold in splits.items():
@@ -58,7 +59,8 @@ def test_splits_cover_all_sequences(tmp_path: Path):
     cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42)
     make_splits(cfg)
 
-    splits = json.loads((prepared_dir / "splits.json").read_text())
+    payload = json.loads((prepared_dir / "splits.json").read_text())
+    splits = payload["folds"]
     index = pd.read_parquet(prepared_dir / "index.parquet")
     all_ids = set(index["sequence_id"])
 
@@ -84,8 +86,8 @@ def test_splits_have_expected_count(tmp_path: Path):
     cfg = SplitsConfig(prepared_dir=prepared_dir, n_folds=5, seed=42)
     make_splits(cfg)
 
-    splits = json.loads((prepared_dir / "splits.json").read_text())
-    assert sorted(splits.keys()) == ["0", "1", "2", "3", "4"]
+    payload = json.loads((prepared_dir / "splits.json").read_text())
+    assert sorted(payload["folds"].keys()) == ["0", "1", "2", "3", "4"]
 
 
 def test_splits_write_versioned_metadata_schema(tmp_path: Path):
