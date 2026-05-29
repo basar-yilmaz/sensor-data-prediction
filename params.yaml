@@ -1,0 +1,18 @@
+seed: 42
+
+prepare:
+  raw_csv: data/raw/train.csv
+  prepared_dir: data/prepared
+  min_length: 10
+  nan_threshold: 0.5
+  verbose: false
+  sequence_id_col: sequence_id
+  subject_id_col: subject_id
+  gesture_col: gesture
+  step_col: step
+
+splits:
+  prepared_dir: data/prepared
+  n_folds: 5
+  group_col: subject_id
+  stratify_col: gesture
