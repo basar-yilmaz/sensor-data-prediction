@@ -77,7 +77,7 @@ reproducibility.
 
 ## Modeling
 
-Models share a common `forward(batch) -> logits` contract and are selected via the
+Models share a common `forward(batch) -> ModelOutput` contract and are selected via the
 Hydra `model` config group, so architectures can be swapped from the CLI without
 code changes.
 
