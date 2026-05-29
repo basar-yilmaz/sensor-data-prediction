@@ -16,7 +16,7 @@ from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
-from bfrb_sensors.data.download import download_data, ensure_prepared_data
+from bfrb_sensors.data.download import ensure_prepared_data, ensure_raw_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
 from bfrb_sensors.data.splits import load_split_file, load_split_fold
 from bfrb_sensors.models.factory import build_model
@@ -133,9 +133,12 @@ def train_from_config(cfg: DictConfig) -> None:
 
     repo_root = Path(__file__).resolve().parents[2]
     prepared_dir = Path(cfg.data.datamodule.prepared_dir)
-    logger.info("Ensuring prepared data is available via DVC")
-    raw_targets = [str(cfg.data.prepare.raw_csv)]
-    download_data(repo_root=repo_root, targets=raw_targets)
+    logger.info("Ensuring raw data is available (DVC remote or dataset download)")
+    ensure_raw_data(
+        repo_root,
+        Path(cfg.data.prepare.raw_csv),
+        str(cfg.data.download.url),
+    )
     if bool(cfg.data.auto_prepare):
         ensure_prepared_data(repo_root, prepared_dir)
     split_payload = load_split_file(prepared_dir)

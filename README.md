@@ -121,15 +121,42 @@ uv run pre-commit install
 
 ## Fetch Data
 
-Data is versioned with DVC. The data remote is public and read-only, so pulling does
-not require credentials.
+The raw data is downloaded from a public dataset mirror (no credentials needed) and
+versioned with DVC, using a **local MinIO** deployment as the S3-compatible DVC remote.
+Once the raw CSV has been downloaded it is cached in MinIO, so subsequent fetches come
+from MinIO without re-downloading.
 
-```bash
-uv run bfrb download
-```
+1. **Start MinIO** (S3 API on `:9000`, console on `:9001`); the `bfrb-data` /
+   `bfrb-models` buckets are created automatically:
 
-This materializes the raw and prepared data under `data/`. Training also auto-fetches
-prepared data via DVC if it is missing, so this step is optional before training.
+   ```bash
+   docker compose up -d minio minio-init
+   ```
+
+2. **Configure MinIO credentials.** Copy the templates and fill them in:
+
+   ```bash
+   cp .env.example .env                            # MinIO root creds
+   cp .dvc/config.local.example .dvc/config.local  # MinIO S3 keys for DVC
+   ```
+
+   `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` in `.env` must match the keys in
+   `.dvc/config.local` (both default to `minioadmin`).
+
+3. **Fetch** raw + prepared data with one command:
+
+   ```bash
+   uv run bfrb fetch
+   ```
+
+   This pulls the raw CSV from MinIO if present, otherwise downloads the dataset zip over
+   HTTP (`curl`), extracts `train.csv`, and caches it in MinIO (`dvc add` + `dvc push`),
+   then builds the prepared data. Training also auto-fetches if data is missing, so this
+   step is optional before training. The dataset URL is configurable via
+   `data.download.url`.
+
+   To pull DVC-tracked data that already lives in MinIO (no HTTP fallback), use
+   `uv run bfrb download`.
 
 ## Run the Data Pipeline
 

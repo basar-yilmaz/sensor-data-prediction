@@ -1,0 +1,9 @@
+# Copy this file to .dvc/config.local and fill in your MinIO credentials.
+# .dvc/config.local is gitignored; the public endpoint lives in the tracked .dvc/config.
+# Defaults below match the docker-compose MINIO_ROOT_USER/PASSWORD fallbacks.
+['remote "bfrb-data"']
+    access_key_id = minioadmin
+    secret_access_key = minioadmin
+['remote "bfrb-models"']
+    access_key_id = minioadmin
+    secret_access_key = minioadmin
