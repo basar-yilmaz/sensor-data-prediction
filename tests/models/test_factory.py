@@ -1,23 +1,8 @@
 import pytest
 from omegaconf import OmegaConf
 
-from bfrb_sensors.models.baseline import BaselineMLPClassifier
 from bfrb_sensors.models.factory import build_model
 from bfrb_sensors.models.temporal import TemporalConvGRUClassifier
-
-
-def test_build_model_returns_baseline():
-    cfg = OmegaConf.create(
-        {
-            "name": "baseline_mlp",
-            "input_dim": 39,
-            "hidden_dim": 16,
-            "num_classes": 18,
-            "dropout": 0.0,
-            "aux_binary": False,
-        }
-    )
-    assert isinstance(build_model(cfg), BaselineMLPClassifier)
 
 
 def test_build_model_returns_temporal():

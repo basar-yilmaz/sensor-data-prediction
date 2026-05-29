@@ -78,19 +78,16 @@ reproducibility.
 ## Modeling
 
 Models share a common `forward(batch) -> ModelOutput` contract and are selected via the
-Hydra `model` config group, so architectures can be swapped from the CLI without
-code changes.
+Hydra `model` config group.
 
-- **`baseline_mlp`** — per-timestep MLP with masked mean pooling over a 39-dim
-  engineered feature vector (`imu` + `imu_derived` + `thm` + `tof_stats`). A
-  bag-of-timesteps baseline that captures activity level but not temporal order.
-- **`temporal_conv_gru`** — a temporally-aware model over the same features:
-  linear projection → residual Conv1D blocks (local motion patterns) → bidirectional
-  GRU (gesture progression) → masked attention pooling → classifier.
-- **`temporal_conv_gru_tof`** — the same temporal model with an added raw-ToF
+- **`temporal_conv_gru_tof`** (default) — a temporally-aware model over a 39-dim
+  engineered feature vector (`imu` + `imu_derived` + `thm` + `tof_stats`): linear
+  projection → residual Conv1D blocks (local motion patterns) → bidirectional GRU
+  (gesture progression) → masked attention pooling → classifier. It adds a raw-ToF
   spatial branch: a per-timestep 2D CNN over the raw 5×8×8 ToF frames, whose
   embedding is fused with the engineered features (instead of relying only on the
-  20 ToF summary statistics).
+  20 ToF summary statistics). The raw-ToF branch can be disabled with
+  `model.use_tof_raw=false`.
 
 Two training-time options address the class imbalance and the hierarchical metric,
 and can be combined with any model:
@@ -168,27 +165,23 @@ Run training (auto-fetches prepared data via DVC if missing):
 uv run bfrb train
 ```
 
-Hyperparameters are Hydra-managed; override any of them from the CLI. Switch model
-architecture via the `model` config group:
+Hyperparameters are Hydra-managed; override any of them from the CLI. The default run
+is the `temporal_conv_gru_tof` model with `class_weighting=sqrt_inv_freq` and
+`aux_binary_weight=0.2`:
 
 ```bash
-# baseline MLP (default)
+# default best config
 uv run bfrb train
 
-# temporal Conv1D + BiGRU model, longer run
-uv run bfrb train model=temporal_conv_gru training.max_epochs=30 training.batch_size=64
+# longer run with a larger epoch budget (scheduler + early stopping are on by default)
+uv run bfrb train training.max_epochs=60
 
-# weighted loss + auxiliary binary head on the temporal model
-uv run bfrb train model=temporal_conv_gru \
-  training.class_weighting=sqrt_inv_freq training.aux_binary_weight=0.3
+# disable the raw-ToF spatial branch (engineered ToF stats only)
+uv run bfrb train model.use_tof_raw=false
 
-# V3: raw-ToF spatial branch (reuses the temporal_conv_gru architecture)
-uv run bfrb train model=temporal_conv_gru_tof training.max_epochs=30 \
-  training.class_weighting=sqrt_inv_freq
-
-# Demographics ablation A (sensor-only) vs B (+ demographics branch)
-uv run bfrb train model=temporal_conv_gru                              # A
-uv run bfrb train model=temporal_conv_gru model.use_demographics=true  # B
+# Demographics ablation A (sensor-only, default) vs B (+ demographics branch)
+uv run bfrb train                              # A
+uv run bfrb train model.use_demographics=true  # B
 ```
 
 For repeated experiment configs, use the named Hydra experiment group instead of
