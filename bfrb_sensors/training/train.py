@@ -127,6 +127,7 @@ def train_from_config(cfg: DictConfig) -> None:
 
     splits = json.loads((prepared_dir / "splits.json").read_text())
     train_sequence_ids = splits[str(int(cfg.training.fold))]["train"]
+    logger.info("Class weighting scheme: %s", cfg.training.class_weighting)
     class_weights = compute_class_weights(
         index,
         encoder,
@@ -134,7 +135,6 @@ def train_from_config(cfg: DictConfig) -> None:
         scheme=str(cfg.training.class_weighting),
         num_classes=int(cfg.model.num_classes),
     )
-    logger.info("Class weighting scheme: %s", cfg.training.class_weighting)
 
     model = build_model(cfg.model)
     logger.info("Built model %r", str(cfg.model.name))
