@@ -3,7 +3,6 @@ defaults:
   - override /model: temporal_conv_gru_tof
 
 model:
-  use_demographics: false
   aux_binary: true
 
 training:

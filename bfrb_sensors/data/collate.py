@@ -33,8 +33,6 @@ def pad_collate(batch: list[dict]) -> dict:
             length = int(sample["length"].item())
             tof[i, :length] = sample["tof"]
         collated["tof"] = tof
-    if "demographics" in batch[0]:
-        collated["demographics"] = torch.stack([sample["demographics"] for sample in batch])
     return collated
 
 

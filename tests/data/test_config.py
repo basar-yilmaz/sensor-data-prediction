@@ -91,7 +91,6 @@ def test_config_selects_named_training_experiments(
 
     assert cfg.model.name == "temporal_conv_gru"
     assert cfg.model.use_tof_raw is True
-    assert cfg.model.use_demographics is False
     assert cfg.model.aux_binary is aux_binary
     assert cfg.training.class_weighting == "sqrt_inv_freq"
     assert float(cfg.training.aux_binary_weight) == aux_weight

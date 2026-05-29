@@ -67,16 +67,3 @@ def test_pad_collate_preserves_labels_lengths_and_modality_flags():
 def test_pad_collate_rejects_empty_batch():
     with pytest.raises(ValueError, match="empty batch"):
         pad_collate([])
-
-
-def test_pad_collate_stacks_demographics_when_present():
-    samples = [_sample(4, 0, True, True), _sample(6, 1, True, True)]
-    for sample in samples:
-        sample["demographics"] = torch.randn(7)
-    batch = pad_collate(samples)
-    assert batch["demographics"].shape == (2, 7)
-
-
-def test_pad_collate_omits_demographics_when_absent():
-    batch = pad_collate([_sample(4, 0, True, True), _sample(6, 1, True, True)])
-    assert "demographics" not in batch

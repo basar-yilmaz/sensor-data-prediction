@@ -135,15 +135,9 @@ def train_from_config(cfg: DictConfig) -> None:
     prepared_dir = Path(cfg.data.datamodule.prepared_dir)
     logger.info("Ensuring prepared data is available via DVC")
     raw_targets = [str(cfg.data.prepare.raw_csv)]
-    if cfg.data.prepare.demographics_csv is not None:
-        raw_targets.append(str(cfg.data.prepare.demographics_csv))
     download_data(repo_root=repo_root, targets=raw_targets)
     if bool(cfg.data.auto_prepare):
-        ensure_prepared_data(
-            repo_root,
-            prepared_dir,
-            require_demographics=cfg.data.prepare.demographics_csv is not None,
-        )
+        ensure_prepared_data(repo_root, prepared_dir)
     split_payload = load_split_file(prepared_dir)
 
     pl.seed_everything(int(cfg.training.seed), workers=True)

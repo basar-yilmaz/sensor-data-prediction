@@ -8,21 +8,17 @@ stages:
       data.prepare.sample_hz=${prepare.sample_hz}
       data.prepare.quaternion_eps=${prepare.quaternion_eps}
       data.prepare.tof_missing_sentinel=${prepare.tof_missing_sentinel}
-      data.prepare.demographics_csv=${prepare.demographics_csv}
     deps:
       - ${prepare.raw_csv}
-      - ${prepare.demographics_csv}
       - bfrb_sensors/data/features.py
       - bfrb_sensors/data/prepare.py
       - bfrb_sensors/data/label_encoder.py
-      - bfrb_sensors/data/demographics.py
     params:
       - prepare
     outs:
       - ${prepare.prepared_dir}/sequences
       - ${prepare.prepared_dir}/index.parquet
       - ${prepare.prepared_dir}/label_encoder.json
-      - ${prepare.prepared_dir}/demographics.parquet
 
   splits:
     cmd: uv run bfrb splits data.splits.prepared_dir=${splits.prepared_dir}

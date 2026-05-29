@@ -21,7 +21,6 @@ class BFRBDataset(Dataset):
         scaler,
         label_encoder,
         transform=None,
-        demographics_lookup=None,
         load_tof_raw: bool = True,
     ):
         self.prepared_dir = Path(prepared_dir)
@@ -29,7 +28,6 @@ class BFRBDataset(Dataset):
         self.scaler = scaler
         self.label_encoder = label_encoder
         self.transform = transform
-        self.demographics_lookup = demographics_lookup
         self.load_tof_raw = load_tof_raw
 
         index = pd.read_parquet(self.prepared_dir / "index.parquet")
@@ -113,11 +111,6 @@ class BFRBDataset(Dataset):
         }
         if tof is not None:
             sample["tof"] = torch.as_tensor(tof, dtype=torch.float32)
-        if self.demographics_lookup is not None:
-            sample["demographics"] = torch.as_tensor(
-                self.demographics_lookup.vector(str(row["subject_id"])),
-                dtype=torch.float32,
-            )
         if self.transform is not None:
             sample = self.transform(sample)
         return sample

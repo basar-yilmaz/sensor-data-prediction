@@ -17,7 +17,6 @@ prepare:
   sample_hz: 200
   quaternion_eps: 1.0e-8
   tof_missing_sentinel: -1
-  demographics_csv: data/raw/train_demographics.csv
 
 splits:
   prepared_dir: data/prepared
