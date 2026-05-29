@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from bfrb_sensors.data.label_encoder import build_label_encoder
-from bfrb_sensors.models.baseline import BaselineMLPClassifier
+from bfrb_sensors.models.temporal import TemporalConvGRUClassifier
 from bfrb_sensors.training.metrics import HierarchyMapping
 from bfrb_sensors.training.module import BFRBClassificationModule
 
@@ -37,7 +37,7 @@ def _mapping() -> HierarchyMapping:
 @pytest.mark.filterwarnings("ignore:You are trying to `self.log\\(\\)`")
 def test_training_step_returns_loss():
     module = BFRBClassificationModule(
-        model=BaselineMLPClassifier(input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0),
+        model=TemporalConvGRUClassifier(input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0),
         num_classes=3,
         lr=1e-3,
         weight_decay=0.0,
@@ -53,7 +53,7 @@ def test_training_step_returns_loss():
 @pytest.mark.filterwarnings("ignore:You are trying to `self.log\\(\\)`")
 def test_training_step_with_aux_binary_head():
     module = BFRBClassificationModule(
-        model=BaselineMLPClassifier(
+        model=TemporalConvGRUClassifier(
             input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0, aux_binary=True
         ),
         num_classes=3,
@@ -69,7 +69,7 @@ def test_training_step_with_aux_binary_head():
 
 def _module(scheduler: str = "none", **kwargs) -> BFRBClassificationModule:
     return BFRBClassificationModule(
-        model=BaselineMLPClassifier(input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0),
+        model=TemporalConvGRUClassifier(input_dim=39, hidden_dim=16, num_classes=3, dropout=0.0),
         num_classes=3,
         lr=1e-3,
         weight_decay=0.0,

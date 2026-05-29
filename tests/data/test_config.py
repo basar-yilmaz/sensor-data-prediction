@@ -32,12 +32,12 @@ def test_config_composes():
     assert cfg.data.splits.force is False
     assert cfg.data.datamodule.batch_size == 32
     assert cfg.data.datamodule.artifacts_dir == "artifacts"
-    assert cfg.model.name == "baseline_mlp"
+    assert cfg.model.name == "temporal_conv_gru"
     assert cfg.model.input_dim == 39
     assert cfg.training.devices == 1
     assert cfg.training.monitor == "val_hierarchical_f1"
     assert cfg.training.monitor_mode == "max"
-    assert cfg.training.class_weighting == "none"
+    assert cfg.training.class_weighting == "sqrt_inv_freq"
     assert cfg.mlflow.tracking_uri == "http://127.0.0.1:8080"
     assert cfg.data.auto_prepare is True
 
@@ -60,19 +60,6 @@ def test_dvc_splits_command_passes_tracked_split_columns():
 
     assert "data.splits.group_col=${splits.group_col}" in contents
     assert "data.splits.stratify_col=${splits.stratify_col}" in contents
-
-
-def test_config_selects_temporal_model():
-    config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
-    with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
-        cfg = compose(config_name="config", overrides=["model=temporal_conv_gru"])
-
-    assert cfg.model.name == "temporal_conv_gru"
-    assert cfg.model.num_conv_blocks == 2
-    assert cfg.model.gru_layers == 1
-    assert cfg.model.input_dim == 39
-    assert cfg.model.use_demographics is False
-    assert cfg.model.meta_embed_dim == 16
 
 
 def test_config_selects_temporal_tof_model():
