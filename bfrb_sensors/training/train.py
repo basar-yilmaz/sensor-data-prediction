@@ -107,6 +107,9 @@ def _datamodule_config(cfg: DictConfig) -> DataModuleConfig:
 
 
 def train_from_config(cfg: DictConfig) -> None:
+    # Use Tensor Cores for float32 matmuls on capable GPUs (no-op on CPU).
+    torch.set_float32_matmul_precision("high")
+
     if bool(cfg.mlflow.require_server):
         logger.info("Checking MLflow server at %s", cfg.mlflow.tracking_uri)
         check_mlflow_server(str(cfg.mlflow.tracking_uri))
