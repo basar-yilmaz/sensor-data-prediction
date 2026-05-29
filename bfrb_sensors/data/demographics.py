@@ -60,7 +60,9 @@ def write_demographics_parquet(
     demographics = demographics[demographics[SUBJECT_COL].isin(index_subjects)].copy()
 
     for column in BINARY_COLUMNS:
-        values = set(demographics[column].dropna().unique().tolist())
+        if demographics[column].isna().any():
+            raise ValueError(f"binary column {column!r} has null values")
+        values = set(demographics[column].unique())
         if not values <= {0, 1}:
             raise ValueError(f"binary column {column!r} has values outside {{0,1}}: {values}")
 
@@ -74,7 +76,6 @@ def write_demographics_parquet(
     out = demographics.rename(columns={SUBJECT_COL: "subject_id"})[
         ["subject_id", *BINARY_COLUMNS, *CONTINUOUS_COLUMNS]
     ].reset_index(drop=True)
-    out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out.to_parquet(out_path)
     logger.info("Wrote demographics for %d subjects to %s", len(out), out_path)

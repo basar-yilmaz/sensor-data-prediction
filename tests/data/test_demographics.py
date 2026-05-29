@@ -85,6 +85,17 @@ def test_bad_binary_domain_is_hard_error(tmp_path):
         write_demographics_parquet(csv, _index(), out)
 
 
+def test_null_binary_value_is_hard_error(tmp_path):
+    bad = _demographics()
+    bad.loc[0, "handedness"] = None
+    csv = tmp_path / "demo.csv"
+    bad.to_csv(csv, index=False)
+    out = tmp_path / "demographics.parquet"
+
+    with pytest.raises(ValueError, match="null values"):
+        write_demographics_parquet(csv, _index(), out)
+
+
 def test_extra_demographics_subject_is_allowed(tmp_path):
     extra = pd.concat(
         [
