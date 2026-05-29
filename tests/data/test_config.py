@@ -45,6 +45,8 @@ def test_config_selects_temporal_model():
     assert cfg.model.num_conv_blocks == 2
     assert cfg.model.gru_layers == 1
     assert cfg.model.input_dim == 39
+    assert cfg.model.use_demographics is False
+    assert cfg.model.meta_embed_dim == 16
 
 
 def test_config_selects_temporal_tof_model():
