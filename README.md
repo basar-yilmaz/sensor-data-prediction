@@ -87,6 +87,18 @@ code changes.
 - **`temporal_conv_gru`** — a temporally-aware model over the same features:
   linear projection → residual Conv1D blocks (local motion patterns) → bidirectional
   GRU (gesture progression) → masked attention pooling → classifier.
+- **`temporal_conv_gru_tof`** — the same temporal model with an added raw-ToF
+  spatial branch: a per-timestep 2D CNN over the raw 5×8×8 ToF frames, whose
+  embedding is fused with the engineered features (instead of relying only on the
+  20 ToF summary statistics).
+
+Two training-time options address the class imbalance and the hierarchical metric,
+and can be combined with any model:
+
+- `training.class_weighting=sqrt_inv_freq` weights the loss by inverse class
+  frequency (computed from the training fold only), up-weighting rare gestures.
+- `training.aux_binary_weight=<λ>` adds an auxiliary binary (BFRB target vs.
+  non-target) head; the total loss becomes `CE_18 + λ · CE_binary`.
 
 Training uses PyTorch Lightning; configuration is Hydra-managed; experiments
 (hyperparameters, git commit, metrics, and plot artifacts) are tracked in MLflow.
@@ -161,6 +173,14 @@ uv run bfrb train
 
 # temporal Conv1D + BiGRU model, longer run
 uv run bfrb train model=temporal_conv_gru training.max_epochs=30 training.batch_size=64
+
+# weighted loss + auxiliary binary head on the temporal model
+uv run bfrb train model=temporal_conv_gru \
+  training.class_weighting=sqrt_inv_freq training.aux_binary_weight=0.3
+
+# V3: raw-ToF spatial branch (reuses the temporal_conv_gru architecture)
+uv run bfrb train model=temporal_conv_gru_tof training.max_epochs=30 \
+  training.class_weighting=sqrt_inv_freq
 ```
 
 After training, metric/loss curves and a confusion matrix are written to `plots/`
