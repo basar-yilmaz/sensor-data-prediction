@@ -35,6 +35,7 @@ class TofSpatialEncoder(nn.Module):
 
     def forward(self, frames: torch.Tensor) -> torch.Tensor:
         batch_size, timesteps, channels, height, width = frames.shape
+        # NOTE: BN2d sees B*T frames including padded timesteps — masked norm deferred.
         flat = frames.reshape(batch_size * timesteps, channels, height, width)
         features = self.cnn(flat)  # (B*T, 32, 1, 1)
         embedded = self.proj(features)  # (B*T, embed_dim)
