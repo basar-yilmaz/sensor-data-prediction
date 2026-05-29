@@ -3,3 +3,5 @@ defaults:
   - prepare: default
   - splits: default
   - datamodule: default
+
+auto_prepare: true

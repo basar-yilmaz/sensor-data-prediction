@@ -16,7 +16,7 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
-from bfrb_sensors.data.download import download_data
+from bfrb_sensors.data.download import download_data, ensure_prepared_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
 from bfrb_sensors.models.factory import build_model
 from bfrb_sensors.training.class_weights import compute_class_weights
@@ -112,15 +112,21 @@ def train_from_config(cfg: DictConfig) -> None:
         check_mlflow_server(str(cfg.mlflow.tracking_uri))
 
     repo_root = Path(__file__).resolve().parents[2]
+    prepared_dir = Path(cfg.data.datamodule.prepared_dir)
     logger.info("Ensuring prepared data is available via DVC")
     download_data(repo_root=repo_root)
+    if bool(cfg.data.auto_prepare):
+        ensure_prepared_data(
+            repo_root,
+            prepared_dir,
+            require_demographics=cfg.data.prepare.demographics_csv is not None,
+        )
 
     pl.seed_everything(int(cfg.training.seed), workers=True)
     dm = BFRBDataModule(_datamodule_config(cfg))
     dm.prepare_data()
     dm.setup("fit")
 
-    prepared_dir = Path(cfg.data.datamodule.prepared_dir)
     index = pd.read_parquet(prepared_dir / "index.parquet")
     encoder = LabelEncoder.load(prepared_dir / "label_encoder.json")
     hierarchy = HierarchyMapping.from_index(index, encoder)

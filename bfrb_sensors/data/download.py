@@ -24,3 +24,33 @@ def download_data(repo_root: Path, remote: str = "bfrb-data") -> None:
         )
         raise
     logger.info("DVC pull complete for remote %r", remote)
+
+
+def ensure_prepared_data(
+    repo_root: Path,
+    prepared_dir: Path,
+    require_demographics: bool,
+) -> None:
+    """Run the prepare+splits DVC stages if their outputs are missing.
+
+    Idempotent: when the required prepared artifacts already exist this is a no-op,
+    so it is cheap to call on every training run. ``demographics.parquet`` is only
+    required when demographics are configured.
+    """
+    prepared_dir = Path(prepared_dir)
+    required = [prepared_dir / "index.parquet", prepared_dir / "splits.json"]
+    if require_demographics:
+        required.append(prepared_dir / "demographics.parquet")
+
+    missing = [path for path in required if not path.exists()]
+    if not missing:
+        logger.info("Prepared data present; skipping dvc repro")
+        return
+
+    logger.info(
+        "Prepared data missing (%s); running dvc repro for prepare+splits",
+        ", ".join(path.name for path in missing),
+    )
+    with DvcRepo(str(Path(repo_root).resolve())) as repo:
+        repo.reproduce(targets=["prepare", "splits"])
+    logger.info("dvc repro complete; prepared data is ready")
