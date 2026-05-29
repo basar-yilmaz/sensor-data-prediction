@@ -33,3 +33,14 @@ def test_config_composes():
     assert cfg.training.monitor == "val_hierarchical_f1"
     assert cfg.training.monitor_mode == "max"
     assert cfg.mlflow.tracking_uri == "http://127.0.0.1:8080"
+
+
+def test_config_selects_temporal_model():
+    config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
+    with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
+        cfg = compose(config_name="config", overrides=["model=temporal_conv_gru"])
+
+    assert cfg.model.name == "temporal_conv_gru"
+    assert cfg.model.num_conv_blocks == 2
+    assert cfg.model.gru_layers == 1
+    assert cfg.model.input_dim == 39

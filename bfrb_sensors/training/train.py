@@ -17,6 +17,7 @@ from pytorch_lightning.loggers import MLFlowLogger
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
 from bfrb_sensors.data.download import download_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
+from bfrb_sensors.models.factory import build_model
 from bfrb_sensors.training.metrics import HierarchyMapping
 from bfrb_sensors.training.module import BFRBClassificationModule
 from bfrb_sensors.training.plots import write_training_plots
@@ -122,11 +123,11 @@ def train_from_config(cfg: DictConfig) -> None:
     encoder = LabelEncoder.load(prepared_dir / "label_encoder.json")
     hierarchy = HierarchyMapping.from_index(index, encoder)
 
+    model = build_model(cfg.model)
+    logger.info("Built model %r", str(cfg.model.name))
     module = BFRBClassificationModule(
-        input_dim=int(cfg.model.input_dim),
-        hidden_dim=int(cfg.model.hidden_dim),
+        model=model,
         num_classes=int(cfg.model.num_classes),
-        dropout=float(cfg.model.dropout),
         lr=float(cfg.training.lr),
         weight_decay=float(cfg.training.weight_decay),
         hierarchy=hierarchy,
