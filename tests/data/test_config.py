@@ -45,3 +45,13 @@ def test_config_selects_temporal_model():
     assert cfg.model.num_conv_blocks == 2
     assert cfg.model.gru_layers == 1
     assert cfg.model.input_dim == 39
+
+
+def test_config_selects_temporal_tof_model():
+    config_dir = (Path(__file__).resolve().parents[2] / "configs").resolve()
+    with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
+        cfg = compose(config_name="config", overrides=["model=temporal_conv_gru_tof"])
+
+    assert cfg.model.name == "temporal_conv_gru"
+    assert cfg.model.use_tof_raw is True
+    assert cfg.model.tof_embed_dim == 32

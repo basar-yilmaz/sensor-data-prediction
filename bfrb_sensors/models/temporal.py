@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 from bfrb_sensors.models.outputs import ModelOutput
+from bfrb_sensors.models.tof import TofSpatialEncoder
 
 
 class AttentionPool(nn.Module):
@@ -70,6 +71,8 @@ class TemporalConvGRUClassifier(nn.Module):
         dropout: float,
         num_conv_blocks: int = 2,
         gru_layers: int = 1,
+        use_tof_raw: bool = False,
+        tof_embed_dim: int = 32,
         aux_binary: bool = False,
     ) -> None:
         super().__init__()
@@ -77,8 +80,14 @@ class TemporalConvGRUClassifier(nn.Module):
             raise ValueError(
                 f"hidden_dim must be even (BiGRU uses hidden_dim // 2 per direction), got {hidden_dim}"
             )
+        self.tof_encoder = (
+            TofSpatialEncoder(in_channels=5, embed_dim=tof_embed_dim, dropout=dropout)
+            if use_tof_raw
+            else None
+        )
+        proj_in = input_dim + (tof_embed_dim if use_tof_raw else 0)
         self.input_proj = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+            nn.Linear(proj_in, hidden_dim),
             nn.LayerNorm(hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -112,6 +121,9 @@ class TemporalConvGRUClassifier(nn.Module):
             [batch["imu"], batch["imu_derived"], batch["thm"], batch["tof_stats"]],
             dim=-1,
         )
+        if self.tof_encoder is not None:
+            tof_embed = self.tof_encoder(batch["tof"])
+            x = torch.cat([x, tof_embed], dim=-1)
         x = self.input_proj(x)
         for block in self.conv_blocks:
             x = block(x)

@@ -78,3 +78,16 @@ def test_temporal_aux_binary_head_emits_binary_logits():
     assert out.logits.shape == (4, 3)
     assert out.binary_logits is not None
     assert out.binary_logits.shape == (4, 2)
+
+
+def test_temporal_with_raw_tof_branch():
+    model = TemporalConvGRUClassifier(
+        input_dim=39,
+        hidden_dim=16,
+        num_classes=3,
+        dropout=0.0,
+        use_tof_raw=True,
+        tof_embed_dim=8,
+    )
+    out = model(_batch())
+    assert out.logits.shape == (4, 3)
