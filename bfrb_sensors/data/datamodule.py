@@ -13,12 +13,6 @@ from torch.utils.data import DataLoader
 
 from bfrb_sensors.data.collate import ModalityDropout, pad_collate
 from bfrb_sensors.data.dataset import BFRBDataset
-from bfrb_sensors.data.demographics import (
-    DemographicsLookup,
-    demographics_stats_path,
-    fit_demographics_stats,
-    load_demographics_stats,
-)
 from bfrb_sensors.data.label_encoder import LabelEncoder, build_label_encoder
 from bfrb_sensors.data.scaler import ScalerConfig, fit_scaler, load_scaler, scaler_path
 from bfrb_sensors.data.splits import load_split_fold
@@ -74,20 +68,6 @@ class BFRBDataModule(pl.LightningDataModule):
             splits = self._load_splits()
             fit_scaler(scaler_cfg, splits["train"])
 
-        demographics_parquet = self._demographics_parquet()
-        if demographics_parquet.exists():
-            stats_path = demographics_stats_path(self.cfg.artifacts_dir, self.cfg.fold_idx)
-            if not stats_path.exists():
-                splits = self._load_splits()
-                index = pd.read_parquet(prepared_dir / "index.parquet")
-                fit_demographics_stats(
-                    demographics_parquet,
-                    index,
-                    splits["train"],
-                    fold_idx=self.cfg.fold_idx,
-                    artifacts_dir=self.cfg.artifacts_dir,
-                )
-
     def setup(self, stage: str | None = None) -> None:
         splits = self._load_splits()
         prepared_dir = Path(self.cfg.prepared_dir)
@@ -100,25 +80,12 @@ class BFRBDataModule(pl.LightningDataModule):
 
         scaler = load_scaler(scaler_path(self._scaler_config()))
 
-        demographics_parquet = self._demographics_parquet()
-        demographics_lookup = None
-        if demographics_parquet.exists():
-            stats_path = demographics_stats_path(self.cfg.artifacts_dir, self.cfg.fold_idx)
-            if not stats_path.exists():
-                raise FileNotFoundError(
-                    f"demographics stats not found at {stats_path}; "
-                    "call prepare_data() before setup() to fit fold-wise stats."
-                )
-            stats = load_demographics_stats(stats_path)
-            demographics_lookup = DemographicsLookup(demographics_parquet, stats)
-
         if stage in (None, "fit", "train", "validate"):
             self.train_dataset = BFRBDataset(
                 prepared_dir=prepared_dir,
                 sequence_ids=splits["train"],
                 scaler=scaler,
                 label_encoder=label_encoder,
-                demographics_lookup=demographics_lookup,
                 load_tof_raw=self.cfg.load_tof_raw,
             )
             self.val_dataset = BFRBDataset(
@@ -126,7 +93,6 @@ class BFRBDataModule(pl.LightningDataModule):
                 sequence_ids=splits["val"],
                 scaler=scaler,
                 label_encoder=label_encoder,
-                demographics_lookup=demographics_lookup,
                 load_tof_raw=self.cfg.load_tof_raw,
             )
 
@@ -155,9 +121,6 @@ class BFRBDataModule(pl.LightningDataModule):
             kwargs["worker_init_fn"] = _seed_worker
             kwargs["persistent_workers"] = self.cfg.persistent_workers
         return DataLoader(dataset, **kwargs)
-
-    def _demographics_parquet(self) -> Path:
-        return Path(self.cfg.prepared_dir) / "demographics.parquet"
 
     def _scaler_config(self) -> ScalerConfig:
         return ScalerConfig(

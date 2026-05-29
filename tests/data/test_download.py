@@ -45,31 +45,29 @@ def test_download_data_full_pull_when_no_targets(tmp_path, monkeypatch):
     assert _FakeRepo.pull_calls == [{"targets": None, "remote": "bfrb-data"}]
 
 
-def _make_prepared(tmp_path, *, index=True, splits=True, demographics=True):
+def _make_prepared(tmp_path, *, index=True, splits=True):
     if index:
         (tmp_path / "index.parquet").write_text("x")
     if splits:
         (tmp_path / "splits.json").write_text("x")
-    if demographics:
-        (tmp_path / "demographics.parquet").write_text("x")
 
 
 def test_skips_repro_when_all_present(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     _make_prepared(tmp_path)
-    ensure_prepared_data(tmp_path, tmp_path, require_demographics=True)
+    ensure_prepared_data(tmp_path, tmp_path)
     assert _FakeRepo.reproduce_calls == []
 
 
 def test_runs_repro_when_index_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     _make_prepared(tmp_path, index=False)
-    ensure_prepared_data(tmp_path, tmp_path, require_demographics=True)
+    ensure_prepared_data(tmp_path, tmp_path)
     assert _FakeRepo.reproduce_calls == [["prepare", "splits"]]
 
 
-def test_demographics_not_required_when_flag_false(tmp_path, monkeypatch):
+def test_runs_repro_when_splits_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
-    _make_prepared(tmp_path, demographics=False)  # only demographics missing
-    ensure_prepared_data(tmp_path, tmp_path, require_demographics=False)
-    assert _FakeRepo.reproduce_calls == []  # demographics not required -> no repro
+    _make_prepared(tmp_path, splits=False)
+    ensure_prepared_data(tmp_path, tmp_path)
+    assert _FakeRepo.reproduce_calls == [["prepare", "splits"]]

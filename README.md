@@ -96,10 +96,6 @@ and can be combined with any model:
   frequency (computed from the training fold only), up-weighting rare gestures.
 - `training.aux_binary_weight=<λ>` adds an auxiliary binary (BFRB target vs.
   non-target) head; the total loss becomes `CE_18 + λ · CE_binary`.
-- `model.use_demographics=true` (temporal model) fuses a per-subject demographics
-  vector (age, sex, handedness, body measurements; continuous fields z-scored
-  fold-wise) through a small MLP into the classifier head. The auxiliary binary
-  head stays sensor-only.
 
 Training uses PyTorch Lightning; configuration is Hydra-managed; experiments
 (hyperparameters, git commit, metrics, and plot artifacts) are tracked in MLflow.
@@ -178,17 +174,13 @@ uv run bfrb train training.max_epochs=60
 
 # disable the raw-ToF spatial branch (engineered ToF stats only)
 uv run bfrb train model.use_tof_raw=false
-
-# Demographics ablation A (sensor-only, default) vs B (+ demographics branch)
-uv run bfrb train                              # A
-uv run bfrb train model.use_demographics=true  # B
 ```
 
 For repeated experiment configs, use the named Hydra experiment group instead of
 rewriting long override lists:
 
 ```bash
-# Current raw-ToF, no-demographics baseline
+# raw-ToF baseline (no auxiliary binary loss)
 uv run bfrb train +experiment=tof_no_demo
 
 # Auxiliary binary loss sweep

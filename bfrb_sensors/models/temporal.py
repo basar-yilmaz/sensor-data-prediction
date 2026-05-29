@@ -8,9 +8,6 @@ from torch import nn
 from bfrb_sensors.models.outputs import ModelOutput
 from bfrb_sensors.models.tof import TofSpatialEncoder
 
-# Width of the per-subject demographics vector (see bfrb_sensors.data.demographics.OUTPUT_COLUMNS).
-_DEMOGRAPHICS_DIM = 7
-
 
 class AttentionPool(nn.Module):
     """Masked attention pooling over the time dimension."""
@@ -77,8 +74,6 @@ class TemporalConvGRUClassifier(nn.Module):
         use_tof_raw: bool = False,
         tof_embed_dim: int = 32,
         aux_binary: bool = False,
-        use_demographics: bool = False,
-        meta_embed_dim: int = 16,
     ) -> None:
         super().__init__()
         if hidden_dim % 2 != 0:
@@ -112,20 +107,9 @@ class TemporalConvGRUClassifier(nn.Module):
             dropout=dropout if gru_layers > 1 else 0.0,
         )
         self.pool = AttentionPool(hidden_dim, dropout=dropout)
-        self.meta_encoder = (
-            nn.Sequential(
-                nn.Linear(_DEMOGRAPHICS_DIM, meta_embed_dim),
-                nn.LayerNorm(meta_embed_dim),
-                nn.GELU(),
-                nn.Dropout(dropout),
-            )
-            if use_demographics
-            else None
-        )
-        classifier_in = hidden_dim + (meta_embed_dim if use_demographics else 0)
         self.classifier = nn.Sequential(
-            nn.LayerNorm(classifier_in),
-            nn.Linear(classifier_in, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, num_classes),
@@ -146,9 +130,4 @@ class TemporalConvGRUClassifier(nn.Module):
         x, _ = self.gru(x)
         pooled = self.pool(x, batch["attention_mask"])
         binary_logits = self.binary_head(pooled) if self.binary_head is not None else None
-        if self.meta_encoder is not None:
-            meta = self.meta_encoder(batch["demographics"])
-            class_input = torch.cat([pooled, meta], dim=-1)
-        else:
-            class_input = pooled
-        return ModelOutput(logits=self.classifier(class_input), binary_logits=binary_logits)
+        return ModelOutput(logits=self.classifier(pooled), binary_logits=binary_logits)
