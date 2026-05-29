@@ -30,31 +30,104 @@ def download_data(
     try:
         with DvcRepo(str(repo_root)) as repo:
             repo.pull(targets=targets, remote=remote)
-    except Exception:
-        logger.exception(
-            "Failed to pull from DVC remote %r. Check that the remote is configured "
+    except Exception as exc:
+        logger.error(
+            "Failed to pull from DVC remote %r (%s). Check that the remote is configured "
             "(`dvc remote list`) and your credentials are valid.",
             remote,
+            exc,
         )
         raise
     logger.info("DVC pull complete for remote %r", remote)
 
 
+def ensure_raw_data(
+    repo_root: Path,
+    raw_csv: Path,
+    dataset_url: str,
+    remote: str = "bfrb-data",
+) -> None:
+    """Ensure the raw CSV is present, fetching it once if needed.
+
+    Resolution order:
+      1. already on disk -> no-op;
+      2. pull from the DVC remote (MinIO);
+      3. download the dataset zip over HTTP, then ``dvc add`` + ``dvc push`` to cache
+         it in MinIO.
+
+    This realizes the "download once, then cache in MinIO" flow: the first run on a
+    fresh remote hits the dataset URL, every later run pulls from MinIO.
+    """
+    repo_root = Path(repo_root).resolve()
+    raw_csv = Path(raw_csv)
+
+    if raw_csv.exists():
+        logger.info("Raw data present at %s; skipping fetch", raw_csv)
+        return
+
+    try:
+        download_data(repo_root, remote=remote, targets=[str(raw_csv)])
+    except Exception:
+        logger.warning(
+            "Could not pull raw data from remote %r; falling back to dataset download.",
+            remote,
+        )
+
+    if raw_csv.exists():
+        return
+
+    from bfrb_sensors.data.fetch_raw import fetch_raw_dataset
+
+    logger.info("Raw data not in remote; downloading dataset from %s", dataset_url)
+    fetch_raw_dataset(dataset_url, raw_csv.parent)
+
+    logger.info("Caching raw data in DVC remote %r (dvc add + push)", remote)
+    with DvcRepo(str(repo_root)) as repo:
+        repo.add(str(raw_csv))
+        repo.push(targets=[str(raw_csv)], remote=remote)
+    logger.info("Raw data cached in remote %r", remote)
+
+
 def ensure_prepared_data(
     repo_root: Path,
     prepared_dir: Path,
+    remote: str = "bfrb-data",
 ) -> None:
-    """Run the prepare+splits DVC stages if their outputs are missing.
+    """Ensure prepared data is present, preferring the DVC remote before repro.
 
-    Idempotent: when the required prepared artifacts already exist this is a no-op,
-    so it is cheap to call on every training run.
+    Pulling prepared artifacts first keeps the split file identical across machines
+    when a shared remote is available. If the remote does not have them yet, rebuild
+    locally and push the prepare+splits outputs for later runs.
     """
     prepared_dir = Path(prepared_dir)
-    required = [prepared_dir / "index.parquet", prepared_dir / "splits.json"]
+    required = [
+        prepared_dir / "sequences",
+        prepared_dir / "index.parquet",
+        prepared_dir / "label_encoder.json",
+        prepared_dir / "splits.json",
+    ]
 
     missing = [path for path in required if not path.exists()]
     if not missing:
         logger.info("Prepared data present; skipping dvc repro")
+        return
+
+    logger.info(
+        "Prepared data missing (%s); trying DVC remote %r first",
+        ", ".join(path.name for path in missing),
+        remote,
+    )
+    try:
+        download_data(repo_root, remote=remote, targets=[str(prepared_dir)])
+    except Exception:
+        logger.warning(
+            "Could not pull prepared data from remote %r; rebuilding locally.",
+            remote,
+        )
+
+    missing = [path for path in required if not path.exists()]
+    if not missing:
+        logger.info("Prepared data restored from DVC remote %r", remote)
         return
 
     logger.info(
@@ -63,4 +136,6 @@ def ensure_prepared_data(
     )
     with DvcRepo(str(Path(repo_root).resolve())) as repo:
         repo.reproduce(targets=["prepare", "splits"])
+        logger.info("Caching prepared data in DVC remote %r", remote)
+        repo.push(targets=["prepare", "splits"], remote=remote)
     logger.info("dvc repro complete; prepared data is ready")

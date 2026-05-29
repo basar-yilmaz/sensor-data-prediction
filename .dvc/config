@@ -1,6 +1,12 @@
 [core]
     remote = bfrb-data
 ['remote "bfrb-data"']
-    url = https://bfrb-data.basaryilmaz.com
+    url = s3://bfrb-data
+    endpointurl = http://localhost:9000
+    access_key_id = minioadmin
+    secret_access_key = minioadmin
 ['remote "bfrb-models"']
-    url = https://pub-37b37a9fd38848e28ae8500972301dd2.r2.dev
+    url = s3://bfrb-models
+    endpointurl = http://localhost:9000
+    access_key_id = minioadmin
+    secret_access_key = minioadmin
