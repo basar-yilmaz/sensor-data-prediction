@@ -8,6 +8,9 @@ from torch import nn
 from bfrb_sensors.models.outputs import ModelOutput
 from bfrb_sensors.models.tof import TofSpatialEncoder
 
+# Width of the per-subject demographics vector (see bfrb_sensors.data.demographics.OUTPUT_COLUMNS).
+_DEMOGRAPHICS_DIM = 7
+
 
 class AttentionPool(nn.Module):
     """Masked attention pooling over the time dimension."""
@@ -111,7 +114,7 @@ class TemporalConvGRUClassifier(nn.Module):
         self.pool = AttentionPool(hidden_dim, dropout=dropout)
         self.meta_encoder = (
             nn.Sequential(
-                nn.Linear(7, meta_embed_dim),
+                nn.Linear(_DEMOGRAPHICS_DIM, meta_embed_dim),
                 nn.LayerNorm(meta_embed_dim),
                 nn.GELU(),
                 nn.Dropout(dropout),
