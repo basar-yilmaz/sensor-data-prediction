@@ -8,3 +8,4 @@ use_imu_derived: true
 use_thm: true
 use_tof_stats: true
 use_tof_raw: false
+aux_binary: false

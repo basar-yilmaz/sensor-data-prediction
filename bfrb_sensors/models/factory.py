@@ -16,6 +16,7 @@ def build_model(model_cfg) -> nn.Module:
             hidden_dim=int(model_cfg.hidden_dim),
             num_classes=int(model_cfg.num_classes),
             dropout=float(model_cfg.dropout),
+            aux_binary=bool(model_cfg.aux_binary),
         )
     if name == "temporal_conv_gru":
         return TemporalConvGRUClassifier(
@@ -25,5 +26,8 @@ def build_model(model_cfg) -> nn.Module:
             dropout=float(model_cfg.dropout),
             num_conv_blocks=int(model_cfg.num_conv_blocks),
             gru_layers=int(model_cfg.gru_layers),
+            use_tof_raw=bool(model_cfg.use_tof_raw),
+            tof_embed_dim=int(model_cfg.tof_embed_dim),
+            aux_binary=bool(model_cfg.aux_binary),
         )
     raise ValueError(f"unknown model {name!r}")
