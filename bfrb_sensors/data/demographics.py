@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 
@@ -80,3 +81,77 @@ def write_demographics_parquet(
     out.to_parquet(out_path)
     logger.info("Wrote demographics for %d subjects to %s", len(out), out_path)
     return out_path
+
+
+def demographics_stats_path(artifacts_dir: Path, fold_idx: int) -> Path:
+    return Path(artifacts_dir) / f"demographics_stats_fold{fold_idx}.joblib"
+
+
+def fit_demographics_stats(
+    demographics_parquet: Path,
+    index: pd.DataFrame,
+    train_sequence_ids: list[str],
+    fold_idx: int,
+    artifacts_dir: Path,
+) -> Path:
+    """Fit z-score stats for continuous demographics over the unique TRAIN subjects."""
+    demographics = pd.read_parquet(demographics_parquet).set_index("subject_id")
+    train = index[index["sequence_id"].isin(set(train_sequence_ids))]
+    train_subjects = sorted(set(train["subject_id"].astype(str)))
+    if not train_subjects:
+        raise ValueError("fit_demographics_stats requires at least one train subject")
+
+    continuous = demographics.loc[train_subjects, list(CONTINUOUS_COLUMNS)].to_numpy(
+        dtype=np.float64
+    )
+    mean = continuous.mean(axis=0).astype(np.float32)
+    std = continuous.std(axis=0).astype(np.float32)
+    std = np.where(std < 1e-8, np.float32(1.0), std)  # zero-variance guard
+
+    payload = {
+        "fold_idx": int(fold_idx),
+        "continuous_columns": list(CONTINUOUS_COLUMNS),
+        "binary_columns": list(BINARY_COLUMNS),
+        "output_columns": list(OUTPUT_COLUMNS),
+        "mean": mean,
+        "std": std,
+    }
+    artifacts_dir = Path(artifacts_dir)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    path = demographics_stats_path(artifacts_dir, fold_idx)
+    joblib.dump(payload, path)
+    logger.info(
+        "Fit demographics stats (fold %d) over %d unique subjects -> %s",
+        fold_idx,
+        len(train_subjects),
+        path,
+    )
+    return path
+
+
+def load_demographics_stats(path: Path) -> dict:
+    return joblib.load(Path(path))
+
+
+class DemographicsLookup:
+    """Maps ``subject_id`` to the fixed ``(DEMOGRAPHICS_DIM,)`` float32 model vector."""
+
+    def __init__(self, demographics_parquet: Path, stats: dict) -> None:
+        demographics = pd.read_parquet(demographics_parquet).set_index("subject_id")
+        mean = np.asarray(stats["mean"], dtype=np.float32)
+        std = np.asarray(stats["std"], dtype=np.float32)
+
+        binary = demographics[list(BINARY_COLUMNS)].to_numpy(dtype=np.float32)
+        continuous = demographics[list(CONTINUOUS_COLUMNS)].to_numpy(dtype=np.float32)
+        normalized = (continuous - mean) / std
+        vectors = np.concatenate([binary, normalized], axis=1).astype(np.float32)
+
+        self._by_subject = {
+            str(subject): vectors[row] for row, subject in enumerate(demographics.index.astype(str))
+        }
+
+    def vector(self, subject_id: str) -> np.ndarray:
+        try:
+            return self._by_subject[str(subject_id)]
+        except KeyError as exc:
+            raise KeyError(f"no demographics for subject {subject_id!r}") from exc
