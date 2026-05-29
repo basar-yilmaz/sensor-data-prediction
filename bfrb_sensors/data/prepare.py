@@ -12,6 +12,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from bfrb_sensors.data.demographics import write_demographics_parquet
 from bfrb_sensors.data.features import (
     angular_velocity_and_distance,
     remove_gravity_from_acc,
@@ -56,6 +57,7 @@ class PrepareConfig:
     sample_hz: float = 200.0
     quaternion_eps: float = 1e-8
     tof_missing_sentinel: float = -1.0
+    demographics_csv: Path | None = None
 
 
 def _fill_nan(arr: np.ndarray) -> tuple[np.ndarray, int]:
@@ -301,6 +303,15 @@ def prepare(cfg: PrepareConfig) -> None:
             f"{encoder.n_classes}; check the raw CSV read and gesture column"
         )
     encoder.save(prepared_dir / "label_encoder.json")
+
+    if cfg.demographics_csv is not None:
+        demographics_csv = Path(cfg.demographics_csv)
+        if not demographics_csv.exists():
+            raise FileNotFoundError(
+                f"demographics_csv configured but not found at {demographics_csv}"
+            )
+        index = pd.read_parquet(prepared_dir / "index.parquet")
+        write_demographics_parquet(demographics_csv, index, prepared_dir / "demographics.parquet")
 
     elapsed = time.perf_counter() - start
     logger.info("Prepare stage finished in %.2fs; %d sequences written", elapsed, len(records))

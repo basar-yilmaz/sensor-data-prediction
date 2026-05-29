@@ -29,5 +29,7 @@ def build_model(model_cfg) -> nn.Module:
             use_tof_raw=bool(model_cfg.use_tof_raw),
             tof_embed_dim=int(model_cfg.tof_embed_dim),
             aux_binary=bool(model_cfg.aux_binary),
+            use_demographics=bool(model_cfg.use_demographics),
+            meta_embed_dim=int(model_cfg.meta_embed_dim),
         )
     raise ValueError(f"unknown model {name!r}")
