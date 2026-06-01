@@ -198,5 +198,5 @@ def make_splits(cfg: SplitsConfig) -> None:
         },
         "splits": splits,
     }
-    splits_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    splits_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     logger.info("Wrote splits to %s", splits_path)

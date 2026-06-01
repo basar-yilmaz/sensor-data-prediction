@@ -37,7 +37,7 @@ class LabelEncoder:
     def save(self, path: Path) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.label_to_id, indent=2, sort_keys=True))
+        path.write_text(json.dumps(self.label_to_id, indent=2, sort_keys=True) + "\n")
         logger.info("Saved label encoder with %d classes to %s", len(self.label_to_id), path)
 
     @classmethod

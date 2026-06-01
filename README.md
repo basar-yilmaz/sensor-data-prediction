@@ -5,7 +5,7 @@ Train a multimodal time-series classifier for the CMI Body-Focused Repetitive Be
 S3-compatible DVC remote, Hydra for configuration, PyTorch Lightning for training, and
 MLflow for experiment tracking.
 
-## Quick Start
+## Setup
 
 Requires Python 3.11, [`uv`](https://docs.astral.sh/uv/), Docker, and Docker Compose.
 
@@ -52,7 +52,7 @@ Services:
 - `bfrb-data`
 - `bfrb-models`
 
-### 4. Run Training
+## Train
 
 ```bash
 uv run bfrb train
