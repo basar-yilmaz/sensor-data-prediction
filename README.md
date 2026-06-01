@@ -156,9 +156,9 @@ class weighting and an auxiliary binary BFRB/non-BFRB loss.
 ## Baseline Model
 
 An IMU-only XGBoost baseline runs in parallel to the neural model: both start from the
-same `splits.json` and report identical `val_*` / `test_*` metrics, so only the model
-internals differ. It collapses each variable-length sequence into per-channel summary
-statistics over the IMU channels (no thermopile / ToF).
+same `splits.json` and report the same `val_*` / `test_*` metric names and definitions,
+so their scores are directly comparable. It collapses each variable-length sequence into
+per-channel summary statistics over the IMU channels (no thermopile / ToF).
 
 ```bash
 uv run bfrb train_baseline
