@@ -249,7 +249,7 @@ def test_ensure_raw_pulls_from_remote(tmp_path, monkeypatch):
     _FakeRepo.pull_materializes = raw  # remote has it -> pull succeeds
     ensure_raw_data(tmp_path, raw, "comp")
     assert _FakeRepo.pull_calls == [{"targets": [str(raw)], "remote": "bfrb-data"}]
-    assert _FakeRepo.add_calls == []  # no Kaggle fallback
+    assert _FakeRepo.add_calls == []  # no HTTP fallback
 
 
 def test_ensure_raw_falls_back_to_download_and_caches(tmp_path, monkeypatch):
@@ -266,8 +266,8 @@ def test_ensure_raw_falls_back_to_download_and_caches(tmp_path, monkeypatch):
 
     monkeypatch.setattr("bfrb_sensors.data.fetch_raw.fetch_raw_dataset", _fake_fetch)
 
-    ensure_raw_data(tmp_path, raw, "http://example.test/d.zip")
+    ensure_raw_data(tmp_path, raw, "http://example.test/train.csv")
 
-    assert calls["args"] == ("http://example.test/d.zip", raw.parent)
+    assert calls["args"] == ("http://example.test/train.csv", raw.parent)
     assert _FakeRepo.add_calls == [str(raw)]
     assert _FakeRepo.push_calls == [{"targets": [str(raw)], "remote": "bfrb-data"}]

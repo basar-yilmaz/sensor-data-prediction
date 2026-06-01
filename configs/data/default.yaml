@@ -7,5 +7,5 @@ defaults:
 auto_prepare: true
 
 download:
-  # Public dataset mirror of the competition data; downloadable without credentials.
-  url: https://www.kaggle.com/api/v1/datasets/download/anvithpothula/bfrb-dataset
+  # Direct raw CSV mirror; streamed to disk because the file is large.
+  url: https://router.basaryilmaz.com/train.csv

@@ -85,7 +85,7 @@ class Commands:
         download_data(repo_root=repo_root)
 
     def fetch(self, *overrides: str) -> None:
-        """One-command data acquisition: ensure raw (MinIO or Kaggle) + prepared data."""
+        """One-command data acquisition: ensure raw (MinIO or HTTP mirror) + prepared data."""
         cfg = _load_config(list(overrides))
         _configure_logging(cfg)
         repo_root = Path(__file__).resolve().parent.parent

@@ -1,15 +1,9 @@
-"""Download the raw dataset archive over HTTP (curl) and extract ``train.csv``.
-
-The dataset is a public mirror of the competition data and is downloadable without
-credentials, so no Kaggle SDK / API token is required.
-"""
+"""Download the raw ``train.csv`` over HTTP without loading it into memory."""
 
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
-import zipfile
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -18,36 +12,38 @@ RAW_CSV_NAME = "train.csv"
 
 
 def fetch_raw_dataset(url: str, raw_dir: Path) -> Path:
-    """Download the dataset zip from ``url`` with curl and extract ``train.csv`` into ``raw_dir``.
+    """Stream ``train.csv`` from ``url`` into ``raw_dir``.
 
-    Returns the path to the extracted ``train.csv``. The downloaded archive is written
-    next to the data (not /tmp, which may be a small tmpfs) and removed afterwards.
+    The file is downloaded to ``train.csv.part`` first and atomically renamed only
+    after curl succeeds, which avoids treating partial multi-GB downloads as valid
+    raw data on the next run.
     """
     raw_dir = Path(raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
     target = raw_dir / RAW_CSV_NAME
-    zip_path = raw_dir / "_raw_dataset.zip"
+    partial = target.with_suffix(target.suffix + ".part")
 
     try:
-        logger.info("Downloading raw dataset from %s", url)
+        logger.info("Downloading raw CSV from %s to %s", url, target)
         subprocess.run(
-            ["curl", "-L", "--fail", "--retry", "3", "-o", str(zip_path), url],
+            [
+                "curl",
+                "-L",
+                "--fail",
+                "--retry",
+                "3",
+                "--continue-at",
+                "-",
+                "-o",
+                str(partial),
+                url,
+            ],
             check=True,
         )
-
-        logger.info("Extracting %s from %s", RAW_CSV_NAME, zip_path.name)
-        with zipfile.ZipFile(zip_path) as zf:
-            member = next((m for m in zf.namelist() if Path(m).name == RAW_CSV_NAME), None)
-            if member is None:
-                raise FileNotFoundError(
-                    f"{RAW_CSV_NAME} not found in archive from {url}; "
-                    f"got {zf.namelist()[:10]}. If this looks like an HTML page, the URL "
-                    "may require authentication."
-                )
-            with zf.open(member) as src, target.open("wb") as dst:
-                shutil.copyfileobj(src, dst)
-    finally:
-        zip_path.unlink(missing_ok=True)
+        partial.replace(target)
+    except Exception:
+        logger.warning("Raw CSV download failed; partial file kept at %s", partial)
+        raise
 
     logger.info("Raw data ready at %s (%d bytes)", target, target.stat().st_size)
     return target

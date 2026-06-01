@@ -56,7 +56,7 @@ def ensure_raw_data(
     Resolution order:
       1. already on disk -> no-op;
       2. pull from the DVC remote (MinIO);
-      3. download the dataset zip over HTTP, then ``dvc add`` + ``dvc push`` to cache
+      3. download the raw CSV over HTTP, then ``dvc add`` + ``dvc push`` to cache
          it in MinIO.
 
     This realizes the "download once, then cache in MinIO" flow: the first run on a
@@ -73,7 +73,7 @@ def ensure_raw_data(
         download_data(repo_root, remote=remote, targets=[str(raw_csv)])
     except Exception:
         logger.warning(
-            "Could not pull raw data from remote %r; falling back to dataset download.",
+            "Could not pull raw data from remote %r; falling back to raw CSV download.",
             remote,
         )
 
@@ -82,7 +82,7 @@ def ensure_raw_data(
 
     from bfrb_sensors.data.fetch_raw import fetch_raw_dataset
 
-    logger.info("Raw data not in remote; downloading dataset from %s", dataset_url)
+    logger.info("Raw data not in remote; downloading raw CSV from %s", dataset_url)
     fetch_raw_dataset(dataset_url, raw_csv.parent)
 
     logger.info("Caching raw data in DVC remote %r (dvc add + push)", remote)
