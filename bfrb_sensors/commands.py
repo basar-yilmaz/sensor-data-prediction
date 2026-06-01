@@ -52,10 +52,12 @@ def _prepare_config_from_hydra(cfg: DictConfig) -> PrepareConfig:
 def _splits_config_from_hydra(cfg: DictConfig) -> SplitsConfig:
     return SplitsConfig(
         prepared_dir=Path(cfg.data.splits.prepared_dir),
-        n_folds=int(cfg.data.splits.n_folds),
+        train_size=float(cfg.data.splits.train_size),
+        val_size=float(cfg.data.splits.val_size),
+        test_size=float(cfg.data.splits.test_size),
         seed=int(cfg.data.splits.seed),
-        group_col=str(cfg.data.splits.group_col),
         stratify_col=str(cfg.data.splits.stratify_col),
+        group_col=str(cfg.data.splits.group_col),
         force=bool(cfg.data.splits.force),
     )
 
@@ -64,7 +66,6 @@ def _datamodule_config_from_hydra(cfg: DictConfig) -> DataModuleConfig:
     return DataModuleConfig(
         prepared_dir=Path(cfg.data.datamodule.prepared_dir),
         artifacts_dir=Path(cfg.data.datamodule.artifacts_dir),
-        fold_idx=int(cfg.data.datamodule.fold_idx),
         batch_size=int(cfg.data.datamodule.batch_size),
         num_workers=int(cfg.data.datamodule.num_workers),
         p_thm=float(cfg.data.datamodule.p_thm),
@@ -112,8 +113,16 @@ class Commands:
         _configure_logging(cfg)
         train_from_config(cfg)
 
+    def train_baseline(self, *overrides: str) -> None:
+        """Train the IMU-only XGBoost baseline (parallel to `train`)."""
+        from bfrb_sensors.baseline.train import train_baseline_from_config
+
+        cfg = _load_config(list(overrides))
+        _configure_logging(cfg)
+        train_baseline_from_config(cfg)
+
     def warm_scaler(self, *overrides: str) -> None:
-        """Eagerly fit the scaler for the configured fold (otherwise lazy-fit on first train)."""
+        """Eagerly fit the scaler (otherwise lazy-fit on first train)."""
         cfg = _load_config(list(overrides))
         _configure_logging(cfg)
         dm = BFRBDataModule(_datamodule_config_from_hydra(cfg))

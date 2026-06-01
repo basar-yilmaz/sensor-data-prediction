@@ -1,0 +1,33 @@
+# XGBoost baseline training pipeline.
+# Trains a tabular gradient-boosted-trees classifier on IMU-only, sequence-level
+# summary features. Parallel to configs/model/*.yaml + configs/training/default.yaml.
+name: xgboost
+num_classes: 18
+seed: 42
+
+# Feature extraction: collapse each variable-length IMU channel into fixed-length
+# summary statistics. Only IMU-derived channels are used (no thermopile / ToF).
+features:
+  use_imu_raw: true # 7 raw IMU channels (acc_*, rot_*)
+  use_imu_derived: true # 7 derived channels (linear acc, angular velocity, angular distance)
+  stats: [mean, std, min, max, median]
+
+# Reuses the neural pipeline's scheme; applied as per-sample weights.
+class_weighting: sqrt_inv_freq # none | sqrt_inv_freq
+
+xgboost:
+  n_estimators: 600
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 1.0
+  reg_lambda: 1.0
+  reg_alpha: 0.0
+  gamma: 0.0
+  tree_method: hist
+  n_jobs: 4
+  early_stopping_rounds: 40 # 0 disables; uses the val split as the eval set
+
+model_path: artifacts/baseline/xgboost.joblib
+plots_dir: plots/baseline

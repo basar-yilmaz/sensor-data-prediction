@@ -4,6 +4,7 @@ defaults:
   - logging: default
   - model: temporal_conv_gru_tof
   - training: default
+  - baseline: default
   - mlflow: local
 
 seed: 42

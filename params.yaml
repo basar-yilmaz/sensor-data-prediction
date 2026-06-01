@@ -20,7 +20,9 @@ prepare:
 
 splits:
   prepared_dir: data/prepared
-  n_folds: 5
-  group_col: subject_id
+  train_size: 0.8
+  val_size: 0.1
+  test_size: 0.1
   stratify_col: gesture
+  group_col: subject_id
   force: false

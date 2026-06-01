@@ -27,7 +27,9 @@ def test_config_composes():
     assert cfg.data.prepare.sample_hz == 200
     assert float(cfg.data.prepare.quaternion_eps) == 1e-8
     assert cfg.data.prepare.tof_missing_sentinel == -1
-    assert cfg.data.splits.n_folds == 5
+    assert cfg.data.splits.train_size == 0.8
+    assert cfg.data.splits.val_size == 0.1
+    assert cfg.data.splits.test_size == 0.1
     assert cfg.data.splits.prepared_dir == "data/prepared"
     assert cfg.data.splits.force is False
     assert cfg.data.datamodule.batch_size == 32
@@ -50,7 +52,6 @@ def test_splits_config_maps_force_override():
     splits_cfg = _splits_config_from_hydra(cfg)
 
     assert splits_cfg.force is True
-    assert splits_cfg.group_col == "subject_id"
     assert splits_cfg.stratify_col == "gesture"
 
 
@@ -58,7 +59,9 @@ def test_dvc_splits_command_passes_tracked_split_columns():
     dvc_yaml = Path(__file__).resolve().parents[2] / "dvc.yaml"
     contents = dvc_yaml.read_text()
 
-    assert "data.splits.group_col=${splits.group_col}" in contents
+    assert "data.splits.train_size=${splits.train_size}" in contents
+    assert "data.splits.val_size=${splits.val_size}" in contents
+    assert "data.splits.test_size=${splits.test_size}" in contents
     assert "data.splits.stratify_col=${splits.stratify_col}" in contents
 
 

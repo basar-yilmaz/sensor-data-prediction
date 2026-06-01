@@ -75,7 +75,7 @@ On a fresh machine, `bfrb train` will:
 8. Start model training.
 
 This keeps `splits.json` shared through MinIO so machines connected to the same DVC
-remote use the same train/validation folds.
+remote use the same train/validation/test split.
 
 ## Common Training Overrides
 
@@ -83,7 +83,7 @@ Hydra overrides can be passed directly after the command:
 
 ```bash
 uv run bfrb train training.max_epochs=60
-uv run bfrb train training.fold=1 training.seed=123
+uv run bfrb train training.seed=123
 uv run bfrb train model.use_tof_raw=false
 ```
 
@@ -123,7 +123,7 @@ uv run dvc repro
 Runs the DVC pipeline stages:
 
 - `prepare`: raw CSV to per-sequence parquet files, index, and label encoder
-- `splits`: subject-disjoint stratified train/validation fold assignments
+- `splits`: fixed subject-disjoint stratified train/validation/test assignments
 
 ### Run Individual Data Stages
 
@@ -143,9 +143,24 @@ The dataset contains wrist-worn sensor sequences from the CMI BFRB competition:
 - Time-of-Flight: five 8x8 distance sensors
 - Target: 18 gesture/orientation classes
 
-Validation uses 5-fold `StratifiedGroupKFold` with subject IDs as groups, so the same
-participant does not appear in both training and validation for a fold.
+Evaluation uses a fixed `0.8 / 0.1 / 0.1` train/validation/test split that is stratified
+by gesture and **subject-disjoint** (grouped via two-stage `StratifiedGroupKFold`), so no
+participant appears in more than one split. Because whole subjects move together, the
+realized fractions approximate the targets rather than matching them exactly. Validation
+drives early stopping and checkpoint selection; the test split is scored once at the end.
 
 The default model is `temporal_conv_gru_tof`, a temporal Conv1D + bidirectional GRU
 classifier with optional raw-ToF spatial features. The default training config uses
 class weighting and an auxiliary binary BFRB/non-BFRB loss.
+
+## Baseline Model
+
+An IMU-only XGBoost baseline runs in parallel to the neural model: both start from the
+same `splits.json` and report identical `val_*` / `test_*` metrics, so only the model
+internals differ. It collapses each variable-length sequence into per-channel summary
+statistics over the IMU channels (no thermopile / ToF).
+
+```bash
+uv run bfrb train_baseline
+uv run bfrb train_baseline baseline.xgboost.max_depth=8
+```

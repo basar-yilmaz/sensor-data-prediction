@@ -1,4 +1,4 @@
-"""Class-imbalance weights computed from training-fold label counts."""
+"""Class-imbalance weights computed from training split label counts."""
 
 from __future__ import annotations
 

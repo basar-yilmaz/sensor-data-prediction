@@ -21,6 +21,7 @@ dependencies = [
   "torchmetrics>=1.4,<2",
   "matplotlib>=3.8,<4",
   "requests>=2.32,<3",
+  "xgboost>=2.0,<3",
 ]
 
 [project.scripts]

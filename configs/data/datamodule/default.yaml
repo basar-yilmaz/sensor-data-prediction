@@ -1,6 +1,5 @@
 prepared_dir: ${paths.prepared_dir}
 artifacts_dir: ${paths.artifacts_dir}
-fold_idx: 0
 batch_size: 32
 num_workers: 4
 p_thm: 0.5

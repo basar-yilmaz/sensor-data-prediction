@@ -1,6 +1,8 @@
 prepared_dir: ${paths.prepared_dir}
-n_folds: 5
+train_size: 0.8
+val_size: 0.1
+test_size: 0.1
 seed: ${seed}
-group_col: subject_id
 stratify_col: gesture
+group_col: subject_id # subject-disjoint: no participant spans train/val/test
 force: false

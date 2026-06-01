@@ -1,4 +1,4 @@
-"""Per-fold StandardScaler computed on train-fold IMU + THM channels only.
+"""StandardScaler computed on training split IMU + THM channels only.
 
 ToF is left unscaled (bounded distance values, per-pixel scaling is brittle).
 The scaler is stored as a plain dict of numpy arrays for fast load + transparent inspection.
@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 class ScalerConfig:
     prepared_dir: Path
     artifacts_dir: Path
-    fold_idx: int
 
 
 def _load_sequence(prepared_dir: Path, sequence_id: str) -> tuple[np.ndarray, np.ndarray]:
@@ -35,7 +34,7 @@ def _load_sequence(prepared_dir: Path, sequence_id: str) -> tuple[np.ndarray, np
 
 
 def _scaler_path(cfg: ScalerConfig) -> Path:
-    return Path(cfg.artifacts_dir) / f"scaler_fold{cfg.fold_idx}.joblib"
+    return Path(cfg.artifacts_dir) / "scaler.joblib"
 
 
 def fit_scaler(cfg: ScalerConfig, train_sequence_ids: Iterable[str]) -> Path:
@@ -66,7 +65,6 @@ def fit_scaler(cfg: ScalerConfig, train_sequence_ids: Iterable[str]) -> Path:
     thm_std = np.where(thm_std < 1e-8, np.float32(1.0), thm_std)
 
     payload = {
-        "fold_idx": int(cfg.fold_idx),
         "n_timesteps": int(imu_all.shape[0]),
         "imu_mean": imu_mean,
         "imu_std": imu_std,
@@ -77,8 +75,7 @@ def fit_scaler(cfg: ScalerConfig, train_sequence_ids: Iterable[str]) -> Path:
     path = _scaler_path(cfg)
     joblib.dump(payload, path)
     logger.info(
-        "Fit scaler (fold %d) on %d sequences / %d timesteps -> %s",
-        cfg.fold_idx,
+        "Fit scaler on %d sequences / %d timesteps -> %s",
         len(sequence_ids),
         imu_all.shape[0],
         path,

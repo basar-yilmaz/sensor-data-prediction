@@ -14,20 +14,21 @@ from tests.data.conftest import SyntheticSequenceSpec
 
 
 def _prepared_fixture(tmp_path: Path, synthetic_raw_csv) -> tuple[Path, Path]:
-    specs = [
-        SyntheticSequenceSpec("s0001", "p01", "gesture_00", length=12),
-        SyntheticSequenceSpec("s0002", "p02", "gesture_00", length=13),
-        SyntheticSequenceSpec("s0003", "p03", "gesture_01", length=14),
-        SyntheticSequenceSpec("s0004", "p04", "gesture_01", length=15),
-        SyntheticSequenceSpec("s0005", "p05", "gesture_02", length=16),
-        SyntheticSequenceSpec("s0006", "p06", "gesture_02", length=17),
-    ]
+    specs = []
+    for cls in range(3):
+        for i in range(10):
+            idx = cls * 10 + i
+            specs.append(
+                SyntheticSequenceSpec(
+                    f"s{idx:04d}", f"p{idx:02d}", f"gesture_{cls:02d}", length=12 + i
+                )
+            )
     raw_csv = synthetic_raw_csv(specs)
     prepared_dir = tmp_path / "prepared"
     artifacts_dir = tmp_path / "artifacts"
 
     prepare(PrepareConfig(raw_csv=raw_csv, prepared_dir=prepared_dir, min_length=1))
-    make_splits(SplitsConfig(prepared_dir=prepared_dir, n_folds=2))
+    make_splits(SplitsConfig(prepared_dir=prepared_dir))
     return prepared_dir, artifacts_dir
 
 
@@ -37,7 +38,6 @@ def test_datamodule_prepare_setup_and_train_batch(tmp_path: Path, synthetic_raw_
         DataModuleConfig(
             prepared_dir=prepared_dir,
             artifacts_dir=artifacts_dir,
-            fold_idx=0,
             batch_size=2,
             num_workers=0,
             p_thm=0.0,
@@ -49,9 +49,12 @@ def test_datamodule_prepare_setup_and_train_batch(tmp_path: Path, synthetic_raw_
     dm.setup("fit")
     batch = next(iter(dm.train_dataloader()))
 
-    assert (artifacts_dir / "scaler_fold0.joblib").exists()
+    assert (artifacts_dir / "scaler.joblib").exists()
     assert len(dm.train_dataset) > 0
     assert len(dm.val_dataset) > 0
+    assert len(dm.test_dataset) > 0
+    test_batch = next(iter(dm.test_dataloader()))
+    assert test_batch["label"].shape[0] == test_batch["imu"].shape[0]
     assert batch["imu"].shape[0] == 2
     assert batch["thm"].shape[0] == 2
     assert batch["tof"].shape[0] == 2
@@ -67,7 +70,6 @@ def test_val_dataloader_does_not_apply_modality_dropout(tmp_path: Path, syntheti
         DataModuleConfig(
             prepared_dir=prepared_dir,
             artifacts_dir=artifacts_dir,
-            fold_idx=0,
             batch_size=3,
             num_workers=0,
             p_thm=1.0,
@@ -91,7 +93,6 @@ def test_datamodule_can_skip_raw_tof_loading(tmp_path: Path, synthetic_raw_csv):
         DataModuleConfig(
             prepared_dir=prepared_dir,
             artifacts_dir=artifacts_dir,
-            fold_idx=0,
             batch_size=2,
             num_workers=0,
             p_thm=0.0,
@@ -116,7 +117,6 @@ def test_train_collate_function_is_pickleable(tmp_path: Path, synthetic_raw_csv)
         DataModuleConfig(
             prepared_dir=prepared_dir,
             artifacts_dir=artifacts_dir,
-            fold_idx=0,
             batch_size=2,
             num_workers=0,
         )

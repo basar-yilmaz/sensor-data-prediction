@@ -15,14 +15,13 @@ from bfrb_sensors.data.collate import ModalityDropout, pad_collate
 from bfrb_sensors.data.dataset import BFRBDataset
 from bfrb_sensors.data.label_encoder import LabelEncoder, build_label_encoder
 from bfrb_sensors.data.scaler import ScalerConfig, fit_scaler, load_scaler, scaler_path
-from bfrb_sensors.data.splits import load_split_fold
+from bfrb_sensors.data.splits import load_splits
 
 
 @dataclass(frozen=True)
 class DataModuleConfig:
     prepared_dir: Path
     artifacts_dir: Path
-    fold_idx: int = 0
     batch_size: int = 32
     num_workers: int = 4
     p_thm: float = 0.5
@@ -55,6 +54,7 @@ class BFRBDataModule(pl.LightningDataModule):
         self.cfg = cfg
         self.train_dataset: BFRBDataset | None = None
         self.val_dataset: BFRBDataset | None = None
+        self.test_dataset: BFRBDataset | None = None
 
     def prepare_data(self) -> None:
         prepared_dir = Path(self.cfg.prepared_dir)
@@ -80,21 +80,21 @@ class BFRBDataModule(pl.LightningDataModule):
 
         scaler = load_scaler(scaler_path(self._scaler_config()))
 
+        def _make(sequence_ids: list[str]) -> BFRBDataset:
+            return BFRBDataset(
+                prepared_dir=prepared_dir,
+                sequence_ids=sequence_ids,
+                scaler=scaler,
+                label_encoder=label_encoder,
+                load_tof_raw=self.cfg.load_tof_raw,
+            )
+
         if stage in (None, "fit", "train", "validate"):
-            self.train_dataset = BFRBDataset(
-                prepared_dir=prepared_dir,
-                sequence_ids=splits["train"],
-                scaler=scaler,
-                label_encoder=label_encoder,
-                load_tof_raw=self.cfg.load_tof_raw,
-            )
-            self.val_dataset = BFRBDataset(
-                prepared_dir=prepared_dir,
-                sequence_ids=splits["val"],
-                scaler=scaler,
-                label_encoder=label_encoder,
-                load_tof_raw=self.cfg.load_tof_raw,
-            )
+            self.train_dataset = _make(splits["train"])
+            self.val_dataset = _make(splits["val"])
+        if stage in (None, "fit", "test"):
+            # Held-out test split, scored once at the end of training.
+            self.test_dataset = _make(splits["test"])
 
     def train_dataloader(self) -> DataLoader:
         if self.train_dataset is None:
@@ -108,6 +108,11 @@ class BFRBDataModule(pl.LightningDataModule):
         if self.val_dataset is None:
             raise RuntimeError("setup('fit') must be called before val_dataloader")
         return self._dataloader(self.val_dataset, shuffle=False, collate_fn=pad_collate)
+
+    def test_dataloader(self) -> DataLoader:
+        if self.test_dataset is None:
+            raise RuntimeError("setup('fit') or setup('test') must run before test_dataloader")
+        return self._dataloader(self.test_dataset, shuffle=False, collate_fn=pad_collate)
 
     def _dataloader(self, dataset: BFRBDataset, shuffle: bool, collate_fn) -> DataLoader:
         kwargs: dict[str, Any] = {
@@ -126,8 +131,7 @@ class BFRBDataModule(pl.LightningDataModule):
         return ScalerConfig(
             prepared_dir=Path(self.cfg.prepared_dir),
             artifacts_dir=Path(self.cfg.artifacts_dir),
-            fold_idx=self.cfg.fold_idx,
         )
 
     def _load_splits(self) -> dict[str, list[str]]:
-        return load_split_fold(self.cfg.prepared_dir, self.cfg.fold_idx)
+        return load_splits(self.cfg.prepared_dir)

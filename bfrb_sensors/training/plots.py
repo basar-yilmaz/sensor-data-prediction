@@ -11,6 +11,23 @@ import matplotlib.pyplot as plt  # noqa: E402
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix  # noqa: E402
 
 
+def write_confusion_matrix(
+    plots_dir: Path,
+    y_true: list[int],
+    y_pred: list[int],
+    filename: str = "confusion_matrix.png",
+) -> Path:
+    """Row-normalized confusion matrix; shared by every model and split."""
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    path = plots_dir / filename
+    matrix = confusion_matrix(y_true, y_pred, normalize="true")
+    ConfusionMatrixDisplay(matrix).plot(values_format=".2f")
+    plt.tight_layout()
+    plt.savefig(path)
+    plt.close()
+    return path
+
+
 def write_training_plots(
     plots_dir: Path,
     history: dict[str, list[float]],
@@ -34,7 +51,14 @@ def write_training_plots(
 
     metric_path = plots_dir / "validation_metrics.png"
     plt.figure()
-    for key in ("val_accuracy", "val_macro_f1_18", "val_binary_f1", "val_hierarchical_f1"):
+    for key in (
+        "val_accuracy",
+        "val_macro_f1_18",
+        "val_binary_precision",
+        "val_binary_recall",
+        "val_binary_f1",
+        "val_hierarchical_f1",
+    ):
         plt.plot(history.get(key, []), label=key)
     plt.xlabel("epoch")
     plt.ylabel("score")
@@ -44,12 +68,6 @@ def write_training_plots(
     plt.close()
     paths.append(metric_path)
 
-    cm_path = plots_dir / "confusion_matrix.png"
-    matrix = confusion_matrix(y_true, y_pred, normalize="true")
-    ConfusionMatrixDisplay(matrix).plot(values_format=".2f")
-    plt.tight_layout()
-    plt.savefig(cm_path)
-    plt.close()
-    paths.append(cm_path)
+    paths.append(write_confusion_matrix(plots_dir, y_true, y_pred))
 
     return paths

@@ -1,4 +1,4 @@
-"""Tests for the per-fold StandardScaler fitter."""
+"""Tests for the training-split StandardScaler fitter."""
 
 from __future__ import annotations
 
@@ -36,11 +36,11 @@ def test_fit_scaler_saves_artifact(tmp_path: Path):
         _write_synthetic_sequence(prepared_dir, f"s{i}", length, seed=i)
     train_ids = ["s0", "s1", "s2"]
 
-    cfg = ScalerConfig(prepared_dir=prepared_dir, artifacts_dir=artifacts_dir, fold_idx=0)
+    cfg = ScalerConfig(prepared_dir=prepared_dir, artifacts_dir=artifacts_dir)
     path = fit_scaler(cfg, train_ids)
 
     assert path.exists()
-    assert path == artifacts_dir / "scaler_fold0.joblib"
+    assert path == artifacts_dir / "scaler.joblib"
 
     loaded = joblib.load(path)
     assert "imu_mean" in loaded
@@ -56,7 +56,7 @@ def test_fit_scaler_is_data_driven(tmp_path: Path):
     for i in range(4):
         _write_synthetic_sequence(prepared_dir, f"s{i}", length=20, seed=i)
 
-    cfg = ScalerConfig(prepared_dir=prepared_dir, artifacts_dir=artifacts_dir, fold_idx=0)
+    cfg = ScalerConfig(prepared_dir=prepared_dir, artifacts_dir=artifacts_dir)
     path = fit_scaler(cfg, ["s0", "s1", "s2", "s3"])
     scaler = joblib.load(path)
 
@@ -72,9 +72,8 @@ def test_load_scaler_round_trip(tmp_path: Path):
     for i in range(2):
         _write_synthetic_sequence(prepared_dir, f"s{i}", length=20, seed=i)
 
-    cfg = ScalerConfig(prepared_dir=prepared_dir, artifacts_dir=artifacts_dir, fold_idx=3)
+    cfg = ScalerConfig(prepared_dir=prepared_dir, artifacts_dir=artifacts_dir)
     path = fit_scaler(cfg, ["s0", "s1"])
     scaler = load_scaler(path)
 
-    assert scaler["fold_idx"] == 3
     assert scaler["imu_mean"].shape == (7,)

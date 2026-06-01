@@ -18,12 +18,12 @@ from pytorch_lightning.loggers import MLFlowLogger
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
 from bfrb_sensors.data.download import ensure_prepared_data, ensure_raw_data
 from bfrb_sensors.data.label_encoder import LabelEncoder
-from bfrb_sensors.data.splits import load_split_file, load_split_fold
+from bfrb_sensors.data.splits import load_split_file, load_splits
 from bfrb_sensors.models.factory import build_model
 from bfrb_sensors.training.class_weights import compute_class_weights
-from bfrb_sensors.training.metrics import HierarchyMapping
+from bfrb_sensors.training.metrics import HierarchyMapping, evaluate_predictions
 from bfrb_sensors.training.module import BFRBClassificationModule
-from bfrb_sensors.training.plots import write_training_plots
+from bfrb_sensors.training.plots import write_confusion_matrix, write_training_plots
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,9 @@ _HISTORY_KEYS = (
     "val_loss",
     "val_accuracy",
     "val_macro_f1_18",
+    "val_log_loss",
+    "val_binary_precision",
+    "val_binary_recall",
     "val_binary_f1",
     "val_macro_f1_collapsed",
     "val_hierarchical_f1",
@@ -55,15 +58,44 @@ class MetricsHistory(Callback):
 
 
 @torch.no_grad()
-def _collect_val_predictions(module: pl.LightningModule, dataloader) -> tuple[list[int], list[int]]:
+def _collect_predictions(
+    module: pl.LightningModule, dataloader, *, collect_proba: bool = False
+) -> tuple[list[int], list[int]] | tuple[list[int], list[int], list[list[float]]]:
     module.eval()
     y_true: list[int] = []
     y_pred: list[int] = []
+    y_proba: list[list[float]] = []
     for batch in dataloader:
         logits = module(batch).logits
         y_pred.extend(logits.argmax(dim=1).tolist())
         y_true.extend(batch["label"].tolist())
+        if collect_proba:
+            y_proba.extend(torch.softmax(logits, dim=1).tolist())
+    if collect_proba:
+        return y_true, y_pred, y_proba
     return y_true, y_pred
+
+
+def _load_best_module(
+    cfg: DictConfig,
+    best_model_path: str,
+    hierarchy: HierarchyMapping,
+    fallback: BFRBClassificationModule,
+) -> BFRBClassificationModule:
+    """Reload the best checkpoint for evaluation, falling back to the last state."""
+    if not best_model_path or not Path(best_model_path).exists():
+        logger.warning("No best checkpoint found; evaluating last in-memory weights")
+        return fallback
+    logger.info("Loading best checkpoint for evaluation: %s", best_model_path)
+    # strict=False: the training-time `class_weights` buffer is saved in the
+    # checkpoint but is irrelevant to inference and not reconstructed here.
+    return BFRBClassificationModule.load_from_checkpoint(
+        best_model_path,
+        model=build_model(cfg.model),
+        hierarchy=hierarchy,
+        class_weights=None,
+        strict=False,
+    )
 
 
 def check_mlflow_server(uri: str) -> None:
@@ -101,7 +133,6 @@ def _datamodule_config(cfg: DictConfig) -> DataModuleConfig:
     return DataModuleConfig(
         prepared_dir=Path(cfg.data.datamodule.prepared_dir),
         artifacts_dir=Path(cfg.data.datamodule.artifacts_dir),
-        fold_idx=int(cfg.training.fold),
         batch_size=int(cfg.training.batch_size),
         num_workers=int(cfg.training.num_workers),
         p_thm=float(cfg.data.datamodule.p_thm),
@@ -152,7 +183,7 @@ def train_from_config(cfg: DictConfig) -> None:
     encoder = LabelEncoder.load(prepared_dir / "label_encoder.json")
     hierarchy = HierarchyMapping.from_index(index, encoder)
 
-    train_sequence_ids = load_split_fold(prepared_dir, int(cfg.training.fold))["train"]
+    train_sequence_ids = load_splits(prepared_dir)["train"]
     logger.info("Class weighting scheme: %s", cfg.training.class_weighting)
     class_weights = compute_class_weights(
         index,
@@ -227,7 +258,43 @@ def train_from_config(cfg: DictConfig) -> None:
     trainer.fit(module, datamodule=dm)
     logger.info("Training complete; best checkpoint: %s", checkpoint.best_model_path)
 
-    _log_artifacts(cfg, mlf_logger, module, dm, history)
+    num_classes = int(cfg.model.num_classes)
+    best_module = _load_best_module(cfg, checkpoint.best_model_path, hierarchy, module).to("cpu")
+    test_scores = _evaluate_test(best_module, dm, hierarchy, num_classes)
+    if test_scores:
+        mlf_logger.log_metrics(test_scores)
+
+    _log_artifacts(cfg, mlf_logger, best_module, dm, history, test_scores)
+
+
+def _evaluate_test(
+    module: BFRBClassificationModule,
+    dm: BFRBDataModule,
+    hierarchy: HierarchyMapping,
+    num_classes: int,
+) -> dict[str, float]:
+    """Score the held-out test split once, with the same metrics as validation."""
+    y_true, y_pred, y_proba = _collect_predictions(module, dm.test_dataloader(), collect_proba=True)
+    if not y_true:
+        logger.warning("No test samples available; skipping test evaluation")
+        return {}
+    scores = evaluate_predictions(
+        y_true, y_pred, hierarchy, num_classes, prefix="test", y_proba=y_proba
+    )
+    logger.info(
+        "TEST: hierarchical_f1=%.4f accuracy=%.4f macro_f1_18=%.4f "
+        "binary_precision=%.4f binary_recall=%.4f binary_f1=%.4f "
+        "macro_f1_collapsed=%.4f log_loss=%.4f",
+        scores["test_hierarchical_f1"],
+        scores["test_accuracy"],
+        scores["test_macro_f1_18"],
+        scores["test_binary_precision"],
+        scores["test_binary_recall"],
+        scores["test_binary_f1"],
+        scores["test_macro_f1_collapsed"],
+        scores["test_log_loss"],
+    )
+    return scores
 
 
 def _log_artifacts(
@@ -236,15 +303,21 @@ def _log_artifacts(
     module: pl.LightningModule,
     dm: BFRBDataModule,
     history: MetricsHistory,
+    test_scores: dict[str, float],
 ) -> None:
     plots_dir = Path(cfg.training.plots_dir)
-    y_true, y_pred = _collect_val_predictions(module.to("cpu"), dm.val_dataloader())
+    y_true, y_pred = _collect_predictions(module.to("cpu"), dm.val_dataloader())
     if not y_true:
         logger.warning("No validation samples available; skipping plot generation")
         return
 
     plot_paths = write_training_plots(plots_dir, history.history, y_true=y_true, y_pred=y_pred)
     paths = [*plot_paths]
+    if test_scores:
+        test_true, test_pred = _collect_predictions(module, dm.test_dataloader())
+        paths.append(
+            write_confusion_matrix(plots_dir, test_true, test_pred, "confusion_matrix_test.png")
+        )
     repo_root = Path(__file__).resolve().parents[2]
     dvc_lock = repo_root / "dvc.lock"
     if dvc_lock.exists():

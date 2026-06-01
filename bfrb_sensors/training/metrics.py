@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 import torch
+from sklearn.metrics import accuracy_score, f1_score, log_loss, precision_score, recall_score
 
 from bfrb_sensors.data.label_encoder import LabelEncoder
 
@@ -62,3 +65,61 @@ class HierarchyMapping:
     @property
     def n_collapsed_classes(self) -> int:
         return self.non_target_collapsed_id + 1
+
+
+def evaluate_predictions(
+    y_true: Sequence[int] | np.ndarray,
+    y_pred: Sequence[int] | np.ndarray,
+    hierarchy: HierarchyMapping,
+    num_classes: int,
+    prefix: str = "val",
+    y_proba: Sequence[Sequence[float]] | np.ndarray | None = None,
+) -> dict[str, float]:
+    """Hierarchical metrics from integer predictions, shared by every model.
+
+    Definitions match :class:`bfrb_sensors.training.module.BFRBClassificationModule`
+    so the neural model and the baselines report identical numbers:
+    ``{prefix}_hierarchical_f1 = 0.5 * (binary_f1 + macro_f1_collapsed)``.
+    ``prefix`` is typically ``"val"`` or ``"test"``.
+    """
+    yt = torch.as_tensor(np.asarray(y_true), dtype=torch.long)
+    yp = torch.as_tensor(np.asarray(y_pred), dtype=torch.long)
+
+    binary_true = hierarchy.to_binary(yt).numpy()
+    binary_pred = hierarchy.to_binary(yp).numpy()
+    collapsed_true = hierarchy.to_collapsed(yt).numpy()
+    collapsed_pred = hierarchy.to_collapsed(yp).numpy()
+
+    macro_f1_18 = f1_score(
+        yt.numpy(), yp.numpy(), labels=list(range(num_classes)), average="macro", zero_division=0
+    )
+    binary_precision = precision_score(
+        binary_true, binary_pred, pos_label=1, average="binary", zero_division=0
+    )
+    binary_recall = recall_score(
+        binary_true, binary_pred, pos_label=1, average="binary", zero_division=0
+    )
+    binary_f1 = f1_score(binary_true, binary_pred, pos_label=1, average="binary", zero_division=0)
+    macro_f1_collapsed = f1_score(
+        collapsed_true,
+        collapsed_pred,
+        labels=list(range(hierarchy.n_collapsed_classes)),
+        average="macro",
+        zero_division=0,
+    )
+    hierarchical_f1 = 0.5 * (binary_f1 + macro_f1_collapsed)
+
+    scores = {
+        f"{prefix}_accuracy": float(accuracy_score(yt.numpy(), yp.numpy())),
+        f"{prefix}_macro_f1_18": float(macro_f1_18),
+        f"{prefix}_binary_precision": float(binary_precision),
+        f"{prefix}_binary_recall": float(binary_recall),
+        f"{prefix}_binary_f1": float(binary_f1),
+        f"{prefix}_macro_f1_collapsed": float(macro_f1_collapsed),
+        f"{prefix}_hierarchical_f1": float(hierarchical_f1),
+    }
+    if y_proba is not None:
+        scores[f"{prefix}_log_loss"] = float(
+            log_loss(yt.numpy(), np.asarray(y_proba), labels=list(range(num_classes)))
+        )
+    return scores

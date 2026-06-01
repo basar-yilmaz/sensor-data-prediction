@@ -32,11 +32,12 @@ def test_make_checkpoint_callback_monitors_hierarchical_f1(tmp_path: Path):
 def test_split_hyperparams_are_prefixed():
     metadata = {
         "version": 1,
-        "algorithm": "StratifiedGroupKFold",
-        "n_folds": 5,
+        "algorithm": "stratified_train_val_test_split",
+        "train_size": 0.8,
+        "val_size": 0.1,
+        "test_size": 0.1,
         "seed": 42,
         "shuffle": True,
-        "group_col": "subject_id",
         "stratify_col": "gesture",
         "sequence_count": 360,
         "index_hash": "a" * 64,
@@ -44,11 +45,12 @@ def test_split_hyperparams_are_prefixed():
 
     assert _split_hyperparams(metadata) == {
         "split_version": 1,
-        "split_algorithm": "StratifiedGroupKFold",
-        "split_n_folds": 5,
+        "split_algorithm": "stratified_train_val_test_split",
+        "split_train_size": 0.8,
+        "split_val_size": 0.1,
+        "split_test_size": 0.1,
         "split_seed": 42,
         "split_shuffle": True,
-        "split_group_col": "subject_id",
         "split_stratify_col": "gesture",
         "split_sequence_count": 360,
         "split_index_hash": "a" * 64,
@@ -92,7 +94,7 @@ def test_datamodule_config_skips_raw_tof_when_model_does_not_use_it():
                 }
             },
             "model": {"use_tof_raw": False},
-            "training": {"fold": 0, "batch_size": 64, "num_workers": 4},
+            "training": {"batch_size": 64, "num_workers": 4},
         }
     )
 

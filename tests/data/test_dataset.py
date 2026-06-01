@@ -58,7 +58,6 @@ def _make_index(prepared_dir: Path, rows: list[dict]) -> None:
 
 def _identity_scaler() -> dict:
     return {
-        "fold_idx": 0,
         "n_timesteps": 0,
         "imu_mean": np.zeros(7, dtype=np.float32),
         "imu_std": np.ones(7, dtype=np.float32),
