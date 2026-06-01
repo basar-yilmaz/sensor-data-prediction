@@ -18,14 +18,18 @@ stages:
     outs:
       - ${prepare.prepared_dir}/sequences
       - ${prepare.prepared_dir}/index.parquet
-      - ${prepare.prepared_dir}/label_encoder.json
+      - ${prepare.prepared_dir}/label_encoder.json:
+          # Small, deterministic label map: tracked in git, not the DVC cache/remote.
+          cache: false
 
   splits:
     cmd: uv run bfrb splits data.splits.prepared_dir=${splits.prepared_dir}
-      data.splits.n_folds=${splits.n_folds}
+      data.splits.train_size=${splits.train_size}
+      data.splits.val_size=${splits.val_size}
+      data.splits.test_size=${splits.test_size}
       data.splits.seed=${seed}
-      data.splits.group_col=${splits.group_col}
       data.splits.stratify_col=${splits.stratify_col}
+      data.splits.group_col=${splits.group_col}
       data.splits.force=${splits.force}
     deps:
       - ${splits.prepared_dir}/index.parquet
@@ -34,4 +38,7 @@ stages:
       - splits
       - seed
     outs:
-      - ${splits.prepared_dir}/splits.json
+      - ${splits.prepared_dir}/splits.json:
+          # Frozen, reproducibility-critical split: tracked in git so every machine
+          # shares the identical train/val/test partition (the DVC remote is local).
+          cache: false

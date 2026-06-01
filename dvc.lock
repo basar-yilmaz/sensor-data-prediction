@@ -58,13 +58,15 @@ stages:
       nfiles: 8101
   splits:
     cmd: uv run bfrb splits data.splits.prepared_dir=data/prepared
-      data.splits.n_folds=5 data.splits.seed=42 data.splits.group_col=subject_id
-      data.splits.stratify_col=gesture data.splits.force=false
+      data.splits.train_size=0.8 data.splits.val_size=0.1
+      data.splits.test_size=0.1 data.splits.seed=42
+      data.splits.stratify_col=gesture data.splits.group_col=subject_id
+      data.splits.force=false
     deps:
     - path: bfrb_sensors/data/splits.py
       hash: md5
-      md5: 67523c0fd02f5331ad47e9194663a16c
-      size: 5095
+      md5: 4aafd331c89fd5b907a9262c5a526995
+      size: 7901
     - path: data/prepared/index.parquet
       hash: md5
       md5: 79c460c62f8394941333aa4f40fec7dd
@@ -74,12 +76,14 @@ stages:
         seed: 42
         splits:
           prepared_dir: data/prepared
-          n_folds: 5
-          group_col: subject_id
+          train_size: 0.8
+          val_size: 0.1
+          test_size: 0.1
           stratify_col: gesture
+          group_col: subject_id
           force: false
     outs:
     - path: data/prepared/splits.json
       hash: md5
-      md5: 49fd79f128f16e09349ffe723787da0d
-      size: 891764
+      md5: 33ed434b14c71943ec94dc8c5e91403c
+      size: 162477
