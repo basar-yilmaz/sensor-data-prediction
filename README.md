@@ -69,13 +69,15 @@ On a fresh machine, `bfrb train` will:
 4. If raw data is missing from the remote, download the public dataset mirror and push
    the raw CSV to MinIO through DVC.
 5. Ensure prepared data exists.
-6. Try to pull prepared artifacts, including `splits.json`, from the DVC remote.
-7. If prepared artifacts are missing from the remote, run the DVC `prepare` and `splits`
-   stages locally and push those outputs to MinIO.
-8. Start model training.
+6. Download the small prepared JSON artifacts, `splits.json` and
+   `label_encoder.json`, from `https://router.basaryilmaz.com/` when missing.
+7. Try to pull remaining prepared artifacts from the DVC remote.
+8. If prepared artifacts are missing from the remotes, run the DVC `prepare` and
+   `splits` stages locally and push DVC-cached outputs to MinIO.
+9. Start model training.
 
-This keeps `splits.json` shared through MinIO so machines connected to the same DVC
-remote use the same train/validation/test split.
+This keeps `splits.json` and `label_encoder.json` out of Git while every machine uses
+the same train/validation/test split and label mapping.
 
 ## Common Training Overrides
 

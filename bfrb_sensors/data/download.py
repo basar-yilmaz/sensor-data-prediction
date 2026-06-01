@@ -5,9 +5,13 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import requests
 from dvc.repo import Repo as DvcRepo
 
 logger = logging.getLogger(__name__)
+
+PREPARED_ARTIFACT_BASE_URL = "https://router.basaryilmaz.com"
+PREPARED_HTTP_ARTIFACTS = ("splits.json", "label_encoder.json")
 
 
 def download_data(
@@ -88,29 +92,64 @@ def ensure_raw_data(
     logger.info("Raw data cached in remote %r", remote)
 
 
+def download_prepared_http_artifacts(
+    prepared_dir: Path,
+    base_url: str = PREPARED_ARTIFACT_BASE_URL,
+) -> list[Path]:
+    """Download small prepared artifacts that are hosted outside Git/DVC."""
+    prepared_dir = Path(prepared_dir)
+    prepared_dir.mkdir(parents=True, exist_ok=True)
+    downloaded: list[Path] = []
+    for filename in PREPARED_HTTP_ARTIFACTS:
+        path = prepared_dir / filename
+        if path.exists():
+            continue
+
+        url = f"{base_url.rstrip('/')}/{filename}"
+        logger.info("Downloading prepared artifact %s from %s", path, url)
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        path.write_bytes(response.content)
+        downloaded.append(path)
+    return downloaded
+
+
 def ensure_prepared_data(
     repo_root: Path,
     prepared_dir: Path,
     remote: str = "bfrb-data",
 ) -> None:
-    """Ensure prepared data is present, preferring the DVC remote before repro.
+    """Ensure prepared data is present, preferring remotes before repro.
 
-    Pulling prepared artifacts first keeps the split file identical across machines
-    when a shared remote is available. If the remote does not have them yet, rebuild
-    locally and push the prepare+splits outputs for later runs.
+    Large prepared artifacts come from DVC. The small split and label-map JSON files
+    are hosted on the VPS so they can stay out of the Git repository.
     """
     prepared_dir = Path(prepared_dir)
-    required = [
+    dvc_required = [
         prepared_dir / "sequences",
         prepared_dir / "index.parquet",
+    ]
+    http_required = [
         prepared_dir / "label_encoder.json",
         prepared_dir / "splits.json",
     ]
+    required = dvc_required + http_required
 
     missing = [path for path in required if not path.exists()]
     if not missing:
-        logger.info("Prepared data present; skipping dvc repro")
+        logger.info("Prepared data present; skipping fetch/repro")
         return
+
+    if all(path.exists() for path in dvc_required):
+        try:
+            download_prepared_http_artifacts(prepared_dir)
+        except Exception as exc:
+            logger.warning("Could not download prepared JSON artifacts from VPS: %s", exc)
+
+        missing = [path for path in required if not path.exists()]
+        if not missing:
+            logger.info("Prepared data restored from VPS")
+            return
 
     logger.info(
         "Prepared data missing (%s); trying DVC remote %r first",
@@ -121,13 +160,19 @@ def ensure_prepared_data(
         download_data(repo_root, remote=remote, targets=[str(prepared_dir)])
     except Exception:
         logger.warning(
-            "Could not pull prepared data from remote %r; rebuilding locally.",
+            "Could not pull prepared data from remote %r; continuing fallback.",
             remote,
         )
 
+    if all(path.exists() for path in dvc_required):
+        try:
+            download_prepared_http_artifacts(prepared_dir)
+        except Exception as exc:
+            logger.warning("Could not download prepared JSON artifacts from VPS: %s", exc)
+
     missing = [path for path in required if not path.exists()]
     if not missing:
-        logger.info("Prepared data restored from DVC remote %r", remote)
+        logger.info("Prepared data restored from DVC/VPS remotes")
         return
 
     logger.info(

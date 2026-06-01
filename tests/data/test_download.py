@@ -3,7 +3,12 @@ from __future__ import annotations
 import pytest
 
 from bfrb_sensors.data import download as download_module
-from bfrb_sensors.data.download import download_data, ensure_prepared_data, ensure_raw_data
+from bfrb_sensors.data.download import (
+    download_data,
+    download_prepared_http_artifacts,
+    ensure_prepared_data,
+    ensure_raw_data,
+)
 
 
 class _FakeRepo:
@@ -54,7 +59,7 @@ class _FakeRepo:
 
 
 @pytest.fixture(autouse=True)
-def _reset_calls():
+def _reset_calls(monkeypatch):
     _FakeRepo.reproduce_calls = []
     _FakeRepo.pull_calls = []
     _FakeRepo.add_calls = []
@@ -62,6 +67,7 @@ def _reset_calls():
     _FakeRepo.pull_materializes = None
     _FakeRepo.pull_materializes_many = []
     _FakeRepo.pull_error = None
+    monkeypatch.setattr(download_module, "download_prepared_http_artifacts", lambda *_args: [])
     yield
 
 
@@ -113,7 +119,14 @@ def test_runs_repro_when_index_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     _FakeRepo.pull_error = RuntimeError("missing prepared cache")
     _make_prepared(tmp_path, index=False)
+    http_calls = []
+    monkeypatch.setattr(
+        download_module,
+        "download_prepared_http_artifacts",
+        lambda prepared_dir: http_calls.append(prepared_dir),
+    )
     ensure_prepared_data(tmp_path, tmp_path)
+    assert http_calls == []
     assert _FakeRepo.reproduce_calls == [["prepare", "splits"]]
     assert _FakeRepo.push_calls == [{"targets": ["prepare", "splits"], "remote": "bfrb-data"}]
 
@@ -125,6 +138,26 @@ def test_runs_repro_when_splits_missing(tmp_path, monkeypatch):
     ensure_prepared_data(tmp_path, tmp_path)
     assert _FakeRepo.reproduce_calls == [["prepare", "splits"]]
     assert _FakeRepo.push_calls == [{"targets": ["prepare", "splits"], "remote": "bfrb-data"}]
+
+
+def test_restores_missing_json_artifacts_from_vps_before_repro(tmp_path, monkeypatch):
+    monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
+    _make_prepared(tmp_path, splits=False, label_encoder=False)
+    calls = []
+
+    def _fake_download(prepared_dir):
+        calls.append(prepared_dir)
+        (prepared_dir / "splits.json").write_text("splits")
+        (prepared_dir / "label_encoder.json").write_text("encoder")
+        return [prepared_dir / "splits.json", prepared_dir / "label_encoder.json"]
+
+    monkeypatch.setattr(download_module, "download_prepared_http_artifacts", _fake_download)
+
+    ensure_prepared_data(tmp_path, tmp_path)
+
+    assert calls == [tmp_path]
+    assert _FakeRepo.pull_calls == []
+    assert _FakeRepo.reproduce_calls == []
 
 
 def test_pulls_prepared_from_remote_before_repro(tmp_path, monkeypatch):
@@ -143,6 +176,27 @@ def test_pulls_prepared_from_remote_before_repro(tmp_path, monkeypatch):
     assert _FakeRepo.push_calls == []
 
 
+def test_fetches_json_from_vps_after_dvc_restores_large_artifacts(tmp_path, monkeypatch):
+    monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
+    _FakeRepo.pull_materializes_many = [
+        tmp_path / "index.parquet",
+        tmp_path / "sequences",
+    ]
+
+    def _fake_download(prepared_dir):
+        (prepared_dir / "splits.json").write_text("splits")
+        (prepared_dir / "label_encoder.json").write_text("encoder")
+        return [prepared_dir / "splits.json", prepared_dir / "label_encoder.json"]
+
+    monkeypatch.setattr(download_module, "download_prepared_http_artifacts", _fake_download)
+
+    ensure_prepared_data(tmp_path, tmp_path)
+
+    assert _FakeRepo.pull_calls == [{"targets": [str(tmp_path)], "remote": "bfrb-data"}]
+    assert _FakeRepo.reproduce_calls == []
+    assert _FakeRepo.push_calls == []
+
+
 def test_missing_sequence_dir_triggers_prepared_fetch_or_repro(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     _FakeRepo.pull_error = RuntimeError("missing prepared cache")
@@ -152,6 +206,32 @@ def test_missing_sequence_dir_triggers_prepared_fetch_or_repro(tmp_path, monkeyp
 
     assert _FakeRepo.reproduce_calls == [["prepare", "splits"]]
     assert _FakeRepo.push_calls == [{"targets": ["prepare", "splits"], "remote": "bfrb-data"}]
+
+
+def test_download_prepared_http_artifacts_fetches_missing_files(tmp_path, monkeypatch):
+    class _Response:
+        content = b"downloaded"
+
+        def raise_for_status(self):
+            return None
+
+    calls = []
+
+    def _fake_get(url, timeout):
+        calls.append({"url": url, "timeout": timeout})
+        return _Response()
+
+    monkeypatch.setattr(download_module.requests, "get", _fake_get)
+
+    downloaded = download_prepared_http_artifacts(tmp_path, base_url="http://example.test/base/")
+
+    assert downloaded == [tmp_path / "splits.json", tmp_path / "label_encoder.json"]
+    assert (tmp_path / "splits.json").read_bytes() == b"downloaded"
+    assert (tmp_path / "label_encoder.json").read_bytes() == b"downloaded"
+    assert calls == [
+        {"url": "http://example.test/base/splits.json", "timeout": 30},
+        {"url": "http://example.test/base/label_encoder.json", "timeout": 30},
+    ]
 
 
 def test_ensure_raw_noop_when_present(tmp_path, monkeypatch):
