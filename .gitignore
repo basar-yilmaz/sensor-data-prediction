@@ -80,12 +80,9 @@ Thumbs.db
 
 # DVC
 # Raw data files are ignored per-file by data/raw/.gitignore (created by `dvc add`),
-# so the *.dvc pointers stay tracked. Generated outputs below are tracked via dvc.lock.
-# Ignore the large prepared outputs but keep the small, frozen reproducibility
-# artifacts (split + label map) in git — the DVC remote is per-machine local.
+# so the *.dvc pointers stay tracked. Prepared outputs are restored from DVC or
+# the VPS-hosted JSON artifact mirror.
 /data/prepared/*
-!/data/prepared/splits.json
-!/data/prepared/label_encoder.json
 /artifacts
 .dvc/cache
 .dvc/tmp

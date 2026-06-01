@@ -19,7 +19,7 @@ stages:
       - ${prepare.prepared_dir}/sequences
       - ${prepare.prepared_dir}/index.parquet
       - ${prepare.prepared_dir}/label_encoder.json:
-          # Small, deterministic label map: tracked in git, not the DVC cache/remote.
+          # Small deterministic label map: restored from the mirror when missing.
           cache: false
 
   splits:
@@ -39,6 +39,5 @@ stages:
       - seed
     outs:
       - ${splits.prepared_dir}/splits.json:
-          # Frozen, reproducibility-critical split: tracked in git so every machine
-          # shares the identical train/val/test partition (the DVC remote is local).
+          # Frozen reproducibility-critical split: restored from the mirror when missing.
           cache: false
