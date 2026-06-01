@@ -22,6 +22,7 @@
   const metaSequences = document.getElementById("meta-sequences");
   const metaLength = document.getElementById("meta-length");
   const metaInference = document.getElementById("meta-inference");
+  const sequencePredictions = document.getElementById("sequence-predictions");
   const previewCard = document.getElementById("preview-card");
   const previewTable = document.getElementById("preview-table");
 
@@ -118,6 +119,25 @@
     metaSequences.textContent = String(data.n_sequences);
     metaLength.textContent = `${data.sequence_length} timesteps`;
     metaInference.textContent = `${data.inference_ms.toFixed(1)} ms`;
+    const perSequence = data.sequence_predictions || [];
+    sequencePredictions.innerHTML = perSequence.length > 1
+      ? perSequence
+        .map((entry) => {
+          const conf = entry.predicted_confidence * 100;
+          const modalities = [
+            entry.has_thm ? "THM" : "no THM",
+            entry.has_tof ? "ToF" : "no ToF",
+          ].join(", ");
+          return (
+            `<div class="sequence-predictions__row">` +
+            `<span class="sequence-predictions__id" title="${escapeHtml(entry.sequence_id)}">${escapeHtml(entry.sequence_id)}</span>` +
+            `<span class="sequence-predictions__gesture" title="${escapeHtml(entry.predicted_gesture)}">${escapeHtml(entry.predicted_gesture)}</span>` +
+            `<span class="sequence-predictions__meta">${conf.toFixed(1)}% | ${entry.sequence_length} steps | ${escapeHtml(modalities)}</span>` +
+            `</div>`
+          );
+        })
+        .join("")
+      : "";
     resultMetaDetails.open = false;
   }
 

@@ -14,10 +14,10 @@ import pytest
 import torch
 from fastapi.testclient import TestClient
 
-from deploy.app.config import Settings
-from deploy.app.inference import ModelBundle
-from deploy.app.main import create_app
-from deploy.app.model_arch import TemporalConvGRUClassifier
+from app.config import Settings
+from app.inference import ModelBundle
+from app.main import create_app
+from app.model_arch import TemporalConvGRUClassifier
 
 
 def _make_bundle(device: torch.device | None = None) -> ModelBundle:
@@ -82,7 +82,7 @@ def dummy_settings(tmp_path) -> Settings:
 @pytest.fixture
 def client_with_dummy_model(monkeypatch, dummy_settings):
     bundle = _make_bundle()
-    monkeypatch.setattr("deploy.app.main.load_model_bundle", lambda settings: bundle)
+    monkeypatch.setattr("app.main.load_model_bundle", lambda settings: bundle)
     app = create_app(settings=dummy_settings)
     with TestClient(app) as client:
         client.app.state.bundle = bundle
@@ -95,6 +95,9 @@ def test_index_renders(client_with_dummy_model):
     assert response.status_code == 200
     assert "BFRB Gesture Classifier" in response.text
     assert "Drop a CSV here" in response.text
+    assert 'id="predict-button"' in response.text
+    assert 'form="predict-form"' in response.text
+    assert 'id="sequence-predictions"' in response.text
 
 
 def test_health_endpoint(client_with_dummy_model):
@@ -127,6 +130,32 @@ def test_predict_endpoint_accepts_csv(client_with_dummy_model, sample_csv_bytes)
     assert 1 <= len(body["top_k"]) <= 5
     assert body["n_sequences"] >= 1
     assert body["sequence_length"] >= 1
+    assert len(body["sequence_predictions"]) == body["n_sequences"]
+    assert body["sequence_predictions"][0]["predicted_gesture"] == body["predicted_gesture"]
+
+
+def test_predict_endpoint_accepts_multiple_sequences(client_with_dummy_model, sample_csv_bytes):
+    import pandas as pd
+
+    df = pd.read_csv(io.BytesIO(sample_csv_bytes))
+    second = df.copy()
+    second["sequence_id"] = "SEQ_SECOND"
+    second["sequence_counter"] = range(len(second))
+    csv_bytes = pd.concat([df, second], ignore_index=True).to_csv(index=False).encode("utf-8")
+
+    response = client_with_dummy_model.post(
+        "/api/predict",
+        files={"file": ("multi.csv", csv_bytes, "text/csv")},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["n_sequences"] == 2
+    assert len(body["sequence_predictions"]) == 2
+    assert [p["sequence_id"] for p in body["sequence_predictions"]] == [
+        str(df["sequence_id"].iloc[0]),
+        "SEQ_SECOND",
+    ]
+    assert all(1 <= len(p["top_k"]) <= 5 for p in body["sequence_predictions"])
 
 
 def test_predict_endpoint_rejects_empty_file(client_with_dummy_model):
@@ -159,13 +188,14 @@ def test_predict_json_endpoint(client_with_dummy_model, sample_csv_bytes):
     assert response.status_code == 200, response.text
     body = response.json()
     assert "predicted_gesture" in body
+    assert len(body["sequence_predictions"]) == body["n_sequences"]
 
 
 def test_health_reports_degraded_when_model_missing(monkeypatch, dummy_settings):
     def _raise(_settings):
         raise FileNotFoundError("no checkpoint")
 
-    monkeypatch.setattr("deploy.app.main.load_model_bundle", _raise)
+    monkeypatch.setattr("app.main.load_model_bundle", _raise)
     app = create_app(settings=dummy_settings)
     with TestClient(app) as client:
         response = client.get("/api/health")

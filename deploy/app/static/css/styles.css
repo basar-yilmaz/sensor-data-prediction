@@ -531,6 +531,41 @@ code {
   font-size: 12px;
 }
 
+.sequence-predictions {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sequence-predictions__row {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.9fr) minmax(120px, 1.2fr) minmax(130px, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.sequence-predictions__id,
+.sequence-predictions__gesture,
+.sequence-predictions__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sequence-predictions__id,
+.sequence-predictions__meta {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.sequence-predictions__gesture {
+  color: var(--text);
+}
+
 /* ---- Preview ---- */
 
 .card--preview {

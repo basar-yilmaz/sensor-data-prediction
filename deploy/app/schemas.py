@@ -26,6 +26,18 @@ class PredictionResponse(BaseModel):
     n_sequences: int = Field(ge=1)
     sequence_length: int = Field(ge=1)
     inference_ms: float = Field(ge=0.0)
+    sequence_predictions: list["SequencePrediction"]
+
+
+class SequencePrediction(BaseModel):
+    sequence_id: str
+    predicted_gesture: str
+    predicted_confidence: float = Field(ge=0.0, le=1.0)
+    predicted_class_id: int = Field(ge=0)
+    top_k: list[TopKPrediction]
+    has_thm: bool
+    has_tof: bool
+    sequence_length: int = Field(ge=1)
 
 
 class ErrorResponse(BaseModel):

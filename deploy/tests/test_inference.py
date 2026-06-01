@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 import torch
 
-from deploy.app.config import Settings
-from deploy.app.inference import load_model_bundle, predict
-from deploy.app.model_arch import TemporalConvGRUClassifier
-from deploy.app.preprocessing import featurize_and_collate, parse_csv
+from app.config import Settings
+from app.inference import load_model_bundle, predict
+from app.model_arch import TemporalConvGRUClassifier
+from app.preprocessing import featurize_and_collate, parse_csv
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def test_load_model_bundle_strips_lightning_prefix(tmp_path, tmp_scaler_path):
     prefix. The deploy loader must strip that so the state dict matches the
     bare TemporalConvGRUClassifier layout.
     """
-    from deploy.app.model_arch import TemporalConvGRUClassifier
+    from app.model_arch import TemporalConvGRUClassifier
 
     model = TemporalConvGRUClassifier(
         input_dim=39,
@@ -123,7 +123,7 @@ def test_load_model_bundle_raises_when_checkpoint_missing(tmp_path, tmp_scaler_p
 
 
 def test_resolve_checkpoint_picks_latest(tmp_path):
-    from deploy.app.inference import _resolve_checkpoint_path
+    from app.inference import _resolve_checkpoint_path
 
     (tmp_path / "a.ckpt").write_bytes(b"a")
     (tmp_path / "b.ckpt").write_bytes(b"b")

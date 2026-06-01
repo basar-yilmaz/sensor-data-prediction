@@ -41,7 +41,7 @@
       <button type="button" id="sample-button" class="btn btn--ghost" {% if not model_loaded %}disabled{% endif %}>
         Try sample data
       </button>
-      <button type="submit" id="predict-button" class="btn btn--primary" disabled>
+      <button type="submit" id="predict-button" class="btn btn--primary" form="predict-form" disabled>
         Run prediction
       </button>
     </div>
@@ -66,8 +66,8 @@
     <div id="result-body" hidden>
       <p class="result__label">Predicted gesture</p>
       <h3 class="result__gesture" id="result-gesture">—</h3>
-      <p class="result__confidence">
-        <span class="result__confidence-value" id="result-confidence">—</span>
+      <p class="result__confidence" id="result-confidence">
+        <span class="result__confidence-value">—</span>
         <span class="result__confidence-label">confidence</span>
       </p>
 
@@ -82,6 +82,7 @@
           <p class="meta__line"><span>Sequences</span><span id="meta-sequences">—</span></p>
           <p class="meta__line"><span>Length</span><span id="meta-length">—</span></p>
           <p class="meta__line"><span>Inference</span><span id="meta-inference">—</span></p>
+          <div class="sequence-predictions" id="sequence-predictions"></div>
         </div>
       </details>
     </div>

@@ -18,7 +18,7 @@ if [[ "${BFRB_RELOAD:-false}" == "true" ]]; then
   RELOAD_FLAG="--reload"
 fi
 
-exec uv run uvicorn deploy.app.main:app \
+exec uv --project "${REPO_ROOT}/deploy" run uvicorn app.main:app \
   --host "${HOST}" \
   --port "${PORT}" \
   --log-level "${LOG_LEVEL}" \

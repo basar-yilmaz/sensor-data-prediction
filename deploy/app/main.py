@@ -14,18 +14,19 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from deploy.app.config import Settings, get_settings
-from deploy.app.inference import ModelBundle, load_model_bundle, predict
-from deploy.app.preprocessing import (
+from app.config import Settings, get_settings
+from app.inference import ModelBundle, load_model_bundle, predict_batch
+from app.preprocessing import (
     PreprocessingError,
     featurize_and_collate,
     parse_csv,
 )
-from deploy.app.schemas import (
+from app.schemas import (
     ErrorResponse,
     HealthResponse,
     ModelInfoResponse,
     PredictionResponse,
+    SequencePrediction,
     TopKPrediction,
 )
 
@@ -51,6 +52,50 @@ def _build_topk(
         )
         for idx in top_indices
     ]
+
+
+def _build_prediction_response(
+    *,
+    raw_sequences,
+    batch,
+    bundle: ModelBundle,
+    predicted_class_ids: list[int],
+    probabilities: np.ndarray,
+    inference_ms: float,
+    top_k: int,
+) -> PredictionResponse:
+    sequence_predictions: list[SequencePrediction] = []
+    lengths = batch["length"].detach().cpu().tolist()
+    for seq, predicted_class_id, seq_probabilities, length in zip(
+        raw_sequences, predicted_class_ids, probabilities, lengths, strict=True
+    ):
+        seq_top_k = _build_topk(seq_probabilities, bundle.label_encoder, top_k)
+        sequence_predictions.append(
+            SequencePrediction(
+                sequence_id=seq.sequence_id,
+                predicted_gesture=seq_top_k[0].gesture,
+                predicted_confidence=seq_top_k[0].confidence,
+                predicted_class_id=predicted_class_id,
+                top_k=seq_top_k,
+                has_thm=seq.has_thm,
+                has_tof=seq.has_tof,
+                sequence_length=int(length),
+            )
+        )
+
+    first = sequence_predictions[0]
+    return PredictionResponse(
+        predicted_gesture=first.predicted_gesture,
+        predicted_confidence=first.predicted_confidence,
+        predicted_class_id=first.predicted_class_id,
+        top_k=first.top_k,
+        has_thm=any(seq.has_thm for seq in raw_sequences),
+        has_tof=any(seq.has_tof for seq in raw_sequences),
+        n_sequences=len(raw_sequences),
+        sequence_length=first.sequence_length,
+        inference_ms=inference_ms,
+        sequence_predictions=sequence_predictions,
+    )
 
 
 def _parse_settings_overrides(overrides: list[str] | None = None) -> Settings:
@@ -175,23 +220,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             bundle.scaler,
             max_seq_length=request.app.state.settings.max_seq_length,
         )
-        predicted_class_id, probabilities, inference_ms = predict(
+        predicted_class_ids, probabilities, inference_ms = predict_batch(
             bundle, batch, top_k=request.app.state.settings.top_k
         )
-
-        top_k = _build_topk(probabilities, bundle.label_encoder, request.app.state.settings.top_k)
-        has_thm = any(seq.has_thm for seq in raw_sequences)
-        has_tof = any(seq.has_tof for seq in raw_sequences)
-        return PredictionResponse(
-            predicted_gesture=top_k[0].gesture,
-            predicted_confidence=top_k[0].confidence,
-            predicted_class_id=predicted_class_id,
-            top_k=top_k,
-            has_thm=has_thm,
-            has_tof=has_tof,
-            n_sequences=len(raw_sequences),
-            sequence_length=int(batch["length"][0].item()),
+        return _build_prediction_response(
+            raw_sequences=raw_sequences,
+            batch=batch,
+            bundle=bundle,
+            predicted_class_ids=predicted_class_ids,
+            probabilities=probabilities,
             inference_ms=inference_ms,
+            top_k=request.app.state.settings.top_k,
         )
 
     @app.post("/api/predict_json", response_model=PredictionResponse)
@@ -221,22 +260,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             bundle.scaler,
             max_seq_length=request.app.state.settings.max_seq_length,
         )
-        predicted_class_id, probabilities, inference_ms = predict(
+        predicted_class_ids, probabilities, inference_ms = predict_batch(
             bundle, batch, top_k=request.app.state.settings.top_k
         )
-        top_k = _build_topk(probabilities, bundle.label_encoder, request.app.state.settings.top_k)
-        has_thm = any(seq.has_thm for seq in raw_sequences)
-        has_tof = any(seq.has_tof for seq in raw_sequences)
-        return PredictionResponse(
-            predicted_gesture=top_k[0].gesture,
-            predicted_confidence=top_k[0].confidence,
-            predicted_class_id=predicted_class_id,
-            top_k=top_k,
-            has_thm=has_thm,
-            has_tof=has_tof,
-            n_sequences=len(raw_sequences),
-            sequence_length=int(batch["length"][0].item()),
+        return _build_prediction_response(
+            raw_sequences=raw_sequences,
+            batch=batch,
+            bundle=bundle,
+            predicted_class_ids=predicted_class_ids,
+            probabilities=probabilities,
             inference_ms=inference_ms,
+            top_k=request.app.state.settings.top_k,
         )
 
     return app
@@ -250,7 +284,7 @@ def run() -> None:
 
     settings = get_settings()
     uvicorn.run(
-        "deploy.app.main:app",
+        "app.main:app",
         host=settings.host,
         port=settings.port,
         log_level=settings.log_level,

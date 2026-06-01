@@ -20,8 +20,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from deploy.app.config import Settings
-from deploy.app.model_arch import TemporalConvGRUClassifier
+from app.config import Settings
+from app.model_arch import TemporalConvGRUClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,28 @@ def load_model_bundle(settings: Settings) -> ModelBundle:
 
 
 @torch.no_grad()
+def predict_batch(
+    bundle: ModelBundle,
+    batch: dict[str, torch.Tensor],
+    *,
+    top_k: int = 5,
+) -> tuple[list[int], np.ndarray, float]:
+    """Run inference on a pre-collated batch.
+
+    Returns (predicted_class_ids, probabilities (batch, num_classes), inference_ms).
+    """
+    batch = {key: value.to(bundle.device) for key, value in batch.items()}
+    start = time.perf_counter()
+    logits = bundle.model(batch).logits
+    probabilities = torch.softmax(logits, dim=-1).cpu().numpy()
+    inference_ms = (time.perf_counter() - start) * 1000.0
+    if probabilities.ndim == 1:
+        probabilities = probabilities[None, :]
+    predicted_class_ids = np.argmax(probabilities, axis=1).astype(int).tolist()
+    return predicted_class_ids, probabilities, inference_ms
+
+
+@torch.no_grad()
 def predict(
     bundle: ModelBundle,
     batch: dict[str, torch.Tensor],
@@ -135,12 +157,8 @@ def predict(
 ) -> tuple[int, np.ndarray, float]:
     """Run inference on a pre-collated batch.
 
-    Returns (predicted_class_id, full_probabilities (num_classes,), inference_ms).
+    Returns the first sequence's (predicted_class_id, full_probabilities, inference_ms).
+    Use ``predict_batch`` when an upload may contain multiple sequence IDs.
     """
-    batch = {key: value.to(bundle.device) for key, value in batch.items()}
-    start = time.perf_counter()
-    logits = bundle.model(batch).logits
-    probabilities = torch.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
-    inference_ms = (time.perf_counter() - start) * 1000.0
-    predicted_class_id = int(np.argmax(probabilities))
-    return predicted_class_id, probabilities, inference_ms
+    predicted_class_ids, probabilities, inference_ms = predict_batch(bundle, batch, top_k=top_k)
+    return predicted_class_ids[0], probabilities[0], inference_ms

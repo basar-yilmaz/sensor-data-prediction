@@ -28,10 +28,10 @@ deploy/
 
 The deploy package declares its own deps (FastAPI, Uvicorn, Jinja2, Pydantic,
 etc.) plus the same torch / numpy / scipy stack as the training side. Sync
-into the existing project venv:
+into the deploy venv:
 
 ```bash
-uv sync
+uv --project deploy sync
 ```
 
 The package is built as `bfrb-deploy` (separate from the training
@@ -40,9 +40,9 @@ The package is built as `bfrb-deploy` (separate from the training
 ## Run
 
 ```bash
-uv run bfrb-serve
+uv --project deploy run bfrb-serve
 # or, equivalently:
-uv run uvicorn deploy.app.main:app --host 127.0.0.1 --port 8000
+uv --project deploy run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Open <http://127.0.0.1:8000>.
@@ -53,7 +53,7 @@ lexicographically-last `*.ckpt` under `artifacts/checkpoints/`. Set
 
 ```bash
 BFRB_MODEL_CHECKPOINT=artifacts/checkpoints/<run_id>/epoch=42-val_hierarchical_f1=0.71.ckpt \
-  uv run bfrb-serve
+  uv --project deploy run bfrb-serve
 ```
 
 ## Configuration
@@ -153,7 +153,7 @@ One row per timestep. Required columns:
 ## Tests
 
 ```bash
-uv run --package bfrb-deploy pytest deploy/tests
+uv --project deploy run pytest -c deploy/pyproject.toml deploy/tests
 ```
 
 Tests inject a randomly-initialized `TemporalConvGRUClassifier` so they
@@ -165,11 +165,3 @@ The deploy service loads whatever checkpoint lives on disk at startup. To
 swap in a new model, just retrain (`uv run bfrb train`) and restart
 `bfrb-serve`. The service picks the newest `*.ckpt` automatically; pin a
 specific file via `BFRB_MODEL_CHECKPOINT` if you need to.
-
-## Out of scope
-
-- Authentication / rate limiting (the proposal calls for a local service).
-- Persistent prediction history (no DB).
-- Hot-swap / model versioning (restart the service to load a new
-  checkpoint).
-- Streaming or WebSocket inference.
