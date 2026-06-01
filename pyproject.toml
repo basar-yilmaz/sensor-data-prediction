@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.12"
 authors = [{ name = "Başar Yılmaz" }]
 dependencies = [
-  "torch>=2.2,<3",
+  "torch>=2.7,<3",
   "pytorch-lightning>=2.2,<3",
   "numpy>=1.26,<3",
   "pandas>=2.2,<3",
@@ -45,7 +45,7 @@ packages = ["bfrb_sensors"]
 
 [[tool.uv.index]]
 name = "pytorch-cuda"
-url = "https://download.pytorch.org/whl/cu124"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
