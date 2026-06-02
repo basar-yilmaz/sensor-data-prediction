@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ import pandas as pd
 import pytorch_lightning as pl
 import requests
 import torch
+from dvc.repo import Repo as DvcRepo
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
@@ -127,6 +129,51 @@ def make_checkpoint_callback(checkpoint_dir: Path, monitor: str, mode: str) -> M
 
 def make_early_stopping_callback(monitor: str, mode: str, patience: int) -> EarlyStopping:
     return EarlyStopping(monitor=monitor, mode=mode, patience=patience)
+
+
+def persist_best_model_to_dvc(
+    source_model_path: str,
+    *,
+    repo_root: Path,
+    model_registry_dir: Path,
+    model_artifact_name: str,
+    remote: str,
+    enabled: bool,
+) -> Path | None:
+    """Copy a trained model to a stable DVC-tracked path and push it."""
+    if not enabled:
+        logger.info("Model DVC push disabled; skipping model persistence")
+        return None
+    if not source_model_path:
+        logger.warning("No source model path available; skipping model DVC push")
+        return None
+
+    source = Path(source_model_path)
+    if not source.exists():
+        logger.warning(
+            "Source model artifact does not exist at %s; skipping model DVC push", source
+        )
+        return None
+
+    repo_root = Path(repo_root).resolve()
+    target = Path(model_registry_dir)
+    if not target.is_absolute():
+        target = repo_root / target
+    target = target / model_artifact_name
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info("Copying model artifact %s to model registry path %s", source, target)
+    shutil.copy2(source, target)
+
+    relative_target = target.relative_to(repo_root)
+    with DvcRepo(str(repo_root)) as repo:
+        logger.info("Adding model artifact to DVC: %s", relative_target)
+        repo.add(str(relative_target))
+        logger.info("Pushing model artifact %s to DVC remote %r", relative_target, remote)
+        repo.push(targets=[f"{relative_target}.dvc"], remote=remote)
+
+    logger.info("Model artifact pushed to DVC remote %r: %s", remote, relative_target)
+    return target
 
 
 def _datamodule_config(cfg: DictConfig) -> DataModuleConfig:
@@ -263,6 +310,22 @@ def train_from_config(cfg: DictConfig) -> None:
     test_scores = _evaluate_test(best_module, dm, hierarchy, num_classes)
     if test_scores:
         mlf_logger.log_metrics(test_scores)
+
+    model_artifact_path = persist_best_model_to_dvc(
+        checkpoint.best_model_path,
+        repo_root=repo_root,
+        model_registry_dir=Path(cfg.training.model_registry_dir),
+        model_artifact_name=str(cfg.training.model_artifact_name),
+        remote=str(cfg.training.model_dvc_remote),
+        enabled=bool(cfg.training.push_model_to_dvc),
+    )
+    if model_artifact_path is not None:
+        try:
+            mlf_logger.experiment.log_artifact(mlf_logger.run_id, str(model_artifact_path))
+        except Exception:
+            logger.exception(
+                "Failed to log DVC model artifact copy to MLflow: %s", model_artifact_path
+            )
 
     _log_artifacts(cfg, mlf_logger, best_module, dm, history, test_scores)
 

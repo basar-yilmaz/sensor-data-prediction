@@ -30,4 +30,8 @@ xgboost:
   early_stopping_rounds: 40 # 0 disables; uses the val split as the eval set
 
 model_path: artifacts/baseline/xgboost.joblib
+model_registry_dir: models
+model_artifact_name: xgboost_baseline.joblib
+push_model_to_dvc: true
+model_dvc_remote: bfrb-models
 plots_dir: plots/baseline

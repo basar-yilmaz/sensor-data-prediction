@@ -20,7 +20,7 @@ from bfrb_sensors.data.splits import load_split_file, load_splits
 from bfrb_sensors.training.class_weights import compute_class_weights
 from bfrb_sensors.training.metrics import HierarchyMapping, evaluate_predictions
 from bfrb_sensors.training.plots import write_confusion_matrix
-from bfrb_sensors.training.train import check_mlflow_server, git_state
+from bfrb_sensors.training.train import check_mlflow_server, git_state, persist_best_model_to_dvc
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +205,16 @@ def _log_run(
         joblib.dump({"model": model, "feature_names": names}, model_path)
         logger.info("Saved baseline model to %s", model_path)
 
+        repo_root = Path(__file__).resolve().parents[2]
+        dvc_model_path = persist_best_model_to_dvc(
+            str(model_path),
+            repo_root=repo_root,
+            model_registry_dir=Path(cfg.baseline.model_registry_dir),
+            model_artifact_name=str(cfg.baseline.model_artifact_name),
+            remote=str(cfg.baseline.model_dvc_remote),
+            enabled=bool(cfg.baseline.push_model_to_dvc),
+        )
+
         plots_dir = Path(cfg.baseline.plots_dir)
         plot_paths = write_baseline_plots(
             plots_dir,
@@ -217,7 +227,10 @@ def _log_run(
         test_cm = write_confusion_matrix(
             plots_dir, y_test.tolist(), y_test_pred.tolist(), "confusion_matrix_test.png"
         )
-        for path in [model_path, *plot_paths, test_cm]:
+        artifact_paths = [model_path, *plot_paths, test_cm]
+        if dvc_model_path is not None:
+            artifact_paths.append(dvc_model_path)
+        for path in artifact_paths:
             try:
                 mlflow.log_artifact(str(path))
                 logger.info("Logged artifact to MLflow: %s", path)
