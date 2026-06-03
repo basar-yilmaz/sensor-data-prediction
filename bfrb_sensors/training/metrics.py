@@ -78,7 +78,7 @@ def evaluate_predictions(
     """Hierarchical metrics from integer predictions, shared by every model.
 
     Definitions match :class:`bfrb_sensors.training.module.BFRBClassificationModule`
-    so the neural model and the baselines report identical numbers:
+    so the neural model and the baselines report directly comparable metrics:
     ``{prefix}_hierarchical_f1 = 0.5 * (binary_f1 + macro_f1_collapsed)``.
     ``prefix`` is typically ``"val"`` or ``"test"``.
     """

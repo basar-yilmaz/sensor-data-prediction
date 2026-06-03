@@ -5,7 +5,3 @@ defaults:
   - datamodule: default
 
 auto_prepare: true
-
-download:
-  # Public dataset mirror of the competition data; downloadable without credentials.
-  url: https://www.kaggle.com/api/v1/datasets/download/anvithpothula/bfrb-dataset

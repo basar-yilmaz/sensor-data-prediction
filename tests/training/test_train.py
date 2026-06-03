@@ -13,6 +13,7 @@ from bfrb_sensors.training.train import (
     git_state,
     make_checkpoint_callback,
     make_early_stopping_callback,
+    persist_best_model_to_dvc,
 )
 
 
@@ -99,3 +100,77 @@ def test_datamodule_config_skips_raw_tof_when_model_does_not_use_it():
     )
 
     assert _datamodule_config(cfg).load_tof_raw is False
+
+
+def test_persist_best_model_to_dvc_skips_when_disabled(tmp_path: Path):
+    checkpoint = tmp_path / "best.ckpt"
+    checkpoint.write_bytes(b"checkpoint")
+
+    assert (
+        persist_best_model_to_dvc(
+            str(checkpoint),
+            repo_root=tmp_path,
+            model_registry_dir=Path("models"),
+            model_artifact_name="best.ckpt",
+            remote="bfrb-models",
+            enabled=False,
+        )
+        is None
+    )
+    assert not (tmp_path / "models" / "best.ckpt").exists()
+
+
+def test_persist_best_model_to_dvc_skips_missing_checkpoint(tmp_path: Path):
+    assert (
+        persist_best_model_to_dvc(
+            str(tmp_path / "missing.ckpt"),
+            repo_root=tmp_path,
+            model_registry_dir=Path("models"),
+            model_artifact_name="best.ckpt",
+            remote="bfrb-models",
+            enabled=True,
+        )
+        is None
+    )
+
+
+def test_persist_best_model_to_dvc_copies_adds_and_pushes(monkeypatch, tmp_path: Path):
+    checkpoint = tmp_path / "run" / "best.ckpt"
+    checkpoint.parent.mkdir()
+    checkpoint.write_bytes(b"checkpoint")
+    calls: list[tuple[str, object]] = []
+
+    class FakeDvcRepo:
+        def __init__(self, path: str):
+            calls.append(("init", path))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def add(self, target: str):
+            calls.append(("add", target))
+
+        def push(self, targets: list[str], remote: str):
+            calls.append(("push", {"targets": targets, "remote": remote}))
+
+    monkeypatch.setattr("bfrb_sensors.training.train.DvcRepo", FakeDvcRepo)
+
+    target = persist_best_model_to_dvc(
+        str(checkpoint),
+        repo_root=tmp_path,
+        model_registry_dir=Path("models"),
+        model_artifact_name="temporal.ckpt",
+        remote="bfrb-models",
+        enabled=True,
+    )
+
+    assert target == tmp_path / "models" / "temporal.ckpt"
+    assert target.read_bytes() == b"checkpoint"
+    assert calls == [
+        ("init", str(tmp_path)),
+        ("add", "models/temporal.ckpt"),
+        ("push", {"targets": ["models/temporal.ckpt.dvc"], "remote": "bfrb-models"}),
+    ]

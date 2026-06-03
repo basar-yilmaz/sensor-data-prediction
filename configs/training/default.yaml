@@ -8,6 +8,10 @@ accelerator: auto
 devices: 1
 precision: 32
 checkpoint_dir: artifacts/checkpoints
+model_registry_dir: models
+model_artifact_name: temporal_conv_gru_tof.ckpt
+push_model_to_dvc: true
+model_dvc_remote: bfrb-models
 plots_dir: plots
 overfit_batches: 0
 monitor: val_hierarchical_f1
