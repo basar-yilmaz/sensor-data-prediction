@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if not model_loaded %}
+<section class="banner banner--warn">
+  <strong>Heads up.</strong>
+  {% if startup_error %}
+  Model could not be loaded: <code>{{ startup_error }}</code>. Predictions are disabled until the checkpoint, scaler, and label encoder are reachable.
+  {% else %}
+  The service started without a model. Set <code>BFRB_MODEL_CHECKPOINT</code> to a valid <code>.ckpt</code> file or directory and restart.
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card card--model" id="model-card">
+  <h2 class="card__title">Model</h2>
+  <p class="card__hint">
+    Active checkpoint:
+    <code id="active-checkpoint">{{ checkpoint or "none" }}</code>
+    {% if device %}<span class="model__device">on {{ device }}</span>{% endif %}
+  </p>
+  <p class="card__hint">
+    Run a different trained model by selecting a Lightning <code>.ckpt</code> file
+    from your filesystem. It loads with the configured scaler and label encoder.
+  </p>
+
+  <form id="ckpt-form" enctype="multipart/form-data" novalidate>
+    <input type="file" id="ckpt-input" name="file" accept=".ckpt" hidden />
+    <div class="actions actions--model">
+      <button type="button" id="ckpt-browse" class="btn btn--ghost">Choose .ckpt file</button>
+      <span id="ckpt-name" class="file-name file-name--muted">No file selected</span>
+      <button type="submit" id="ckpt-load" class="btn btn--primary" disabled>Load model</button>
+    </div>
+  </form>
+
+  <div class="progress" id="ckpt-progress" hidden>
+    <div class="progress__bar"></div>
+  </div>
+  <div class="error" id="ckpt-error" hidden></div>
+  <div class="notice" id="ckpt-notice" hidden></div>
+</section>
+
+<section class="grid">
+  <article class="card card--upload" id="upload-card">
+    <h2 class="card__title">1. Upload sensor CSV</h2>
+    <p class="card__hint">
+      One row per timestep. Required columns:
+      <code>sequence_id</code>, <code>sequence_counter</code>,
+      <code>acc_x/y/z</code>, <code>rot_w/x/y/z</code>,
+      <code>thm_1..5</code>, <code>tof_1..5_v0..63</code>.
+    </p>
+
+    <form id="predict-form" class="dropzone" enctype="multipart/form-data" novalidate>
+      <input type="file" id="file-input" name="file" accept=".csv,text/csv" hidden />
+      <div class="dropzone__inner" id="dropzone">
+        <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+          <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="dropzone__primary">Drop a CSV here</p>
+        <p class="dropzone__secondary">or <button type="button" id="browse-button" class="link-button">browse files</button></p>
+      </div>
+      <div class="dropzone__meta" id="file-meta" hidden>
+        <span id="file-name" class="file-name"></span>
+        <button type="button" id="clear-button" class="link-button link-button--danger">clear</button>
+      </div>
+    </form>
+
+    <div class="actions">
+      <button type="button" id="sample-button" class="btn btn--ghost" {% if not model_loaded %}disabled{% endif %}>
+        Try sample data
+      </button>
+      <button type="submit" id="predict-button" class="btn btn--primary" form="predict-form" disabled>
+        Run prediction
+      </button>
+    </div>
+
+    <div class="progress" id="progress" hidden>
+      <div class="progress__bar"></div>
+    </div>
+
+    <div class="error" id="error" hidden></div>
+  </article>
+
+  <article class="card card--result" id="result-card">
+    <h2 class="card__title">2. Prediction</h2>
+    <div id="result-empty" class="empty">
+      <svg viewBox="0 0 24 24" width="48" height="48" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M8 14c.8 1.2 2.3 2 4 2s3.2-.8 4-2M9 9.5h.01M15 9.5h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <p>Upload a CSV to see the predicted gesture and confidence.</p>
+    </div>
+
+    <div id="result-body" hidden>
+      <p class="result__label">Predicted gesture</p>
+      <h3 class="result__gesture" id="result-gesture">—</h3>
+      <p class="result__confidence" id="result-confidence">
+        <span class="result__confidence-value">—</span>
+        <span class="result__confidence-label">confidence</span>
+      </p>
+
+      <div class="modality" id="result-modality"></div>
+
+      <h4 class="result__subhead">Top predictions</h4>
+      <ul class="topk" id="result-topk"></ul>
+
+      <details class="meta" id="result-meta-details">
+        <summary>Sequence summary</summary>
+        <div class="meta__body">
+          <p class="meta__line"><span>Sequences</span><span id="meta-sequences">—</span></p>
+          <p class="meta__line"><span>Length</span><span id="meta-length">—</span></p>
+          <p class="meta__line"><span>Inference</span><span id="meta-inference">—</span></p>
+          <div class="sequence-predictions" id="sequence-predictions"></div>
+        </div>
+      </details>
+    </div>
+  </article>
+</section>
+
+<section class="card card--preview" id="preview-card" hidden>
+  <h2 class="card__title">First 5 rows</h2>
+  <div class="table-wrap">
+    <table class="preview-table" id="preview-table"></table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/app.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,5 @@
+outs:
+- md5: 99ad4a5df3165fbe49cbe7078f215dee
+  size: 5442579
+  hash: md5
+  path: temporal_conv_gru_tof.ckpt

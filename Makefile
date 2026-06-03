@@ -4,12 +4,13 @@ SHELL := /bin/bash
 
 ARGS ?=
 
-.PHONY: help install services train train_baseline fetch download repro prepare splits pull_model pull_baseline clean_data clean_dvc_cache
+.PHONY: help install services serve train train_baseline fetch download repro prepare splits pull_model pull_baseline clean_data clean_dvc_cache
 
 help:
 	@printf "Available targets:\n"
 	@printf "  make install                 Install dependencies with uv\n"
 	@printf "  make services                Start local MLflow service\n"
+	@printf "  make serve                   Start the deploy UI/API service\n"
 	@printf "  make train ARGS='...'        Train neural model\n"
 	@printf "  make train_baseline ARGS='...' Train XGBoost baseline\n"
 	@printf "  make fetch                   Ensure raw/prepared data is available\n"
@@ -27,6 +28,13 @@ install:
 
 services:
 	docker compose up -d mlflow
+
+serve:
+	@uv --project deploy run bfrb-serve $(ARGS); status=$$?; \
+	if [ $$status -eq 130 ] || [ $$status -eq 143 ]; then \
+		printf "\nserve stopped.\n"; exit 0; \
+	fi; \
+	exit $$status
 
 train:
 	uv run bfrb train $(ARGS)
