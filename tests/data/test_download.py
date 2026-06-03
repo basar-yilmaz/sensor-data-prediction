@@ -5,7 +5,8 @@ import pytest
 from bfrb_sensors.data import download as download_module
 from bfrb_sensors.data.download import (
     download_data,
-    download_prepared_http_artifacts,
+    download_minio_object,
+    download_prepared_minio_artifacts,
     ensure_prepared_data,
     ensure_raw_data,
 )
@@ -67,7 +68,12 @@ def _reset_calls(monkeypatch):
     _FakeRepo.pull_materializes = None
     _FakeRepo.pull_materializes_many = []
     _FakeRepo.pull_error = None
-    monkeypatch.setattr(download_module, "download_prepared_http_artifacts", lambda *_args: [])
+
+    def _missing_minio(*_args, **_kwargs):
+        raise RuntimeError("missing minio object")
+
+    monkeypatch.setattr(download_module, "download_minio_object", _missing_minio)
+    monkeypatch.setattr(download_module, "download_prepared_minio_artifacts", lambda *_args: [])
     yield
 
 
@@ -122,7 +128,7 @@ def test_runs_repro_when_index_missing(tmp_path, monkeypatch):
     http_calls = []
     monkeypatch.setattr(
         download_module,
-        "download_prepared_http_artifacts",
+        "download_prepared_minio_artifacts",
         lambda prepared_dir: http_calls.append(prepared_dir),
     )
     ensure_prepared_data(tmp_path, tmp_path)
@@ -140,7 +146,18 @@ def test_runs_repro_when_splits_missing(tmp_path, monkeypatch):
     assert _FakeRepo.push_calls == [{"targets": ["prepare", "splits"], "remote": "bfrb-data"}]
 
 
-def test_restores_missing_json_artifacts_from_vps_before_repro(tmp_path, monkeypatch):
+def test_prepared_repro_skips_push_when_explicitly_disabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
+    _FakeRepo.pull_error = RuntimeError("missing prepared cache")
+    _make_prepared(tmp_path, splits=False)
+
+    ensure_prepared_data(tmp_path, tmp_path, push_to_dvc=False)
+
+    assert _FakeRepo.reproduce_calls == [["prepare", "splits"]]
+    assert _FakeRepo.push_calls == []
+
+
+def test_restores_missing_json_artifacts_from_minio_before_repro(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     _make_prepared(tmp_path, splits=False, label_encoder=False)
     calls = []
@@ -151,7 +168,7 @@ def test_restores_missing_json_artifacts_from_vps_before_repro(tmp_path, monkeyp
         (prepared_dir / "label_encoder.json").write_text("encoder")
         return [prepared_dir / "splits.json", prepared_dir / "label_encoder.json"]
 
-    monkeypatch.setattr(download_module, "download_prepared_http_artifacts", _fake_download)
+    monkeypatch.setattr(download_module, "download_prepared_minio_artifacts", _fake_download)
 
     ensure_prepared_data(tmp_path, tmp_path)
 
@@ -176,7 +193,7 @@ def test_pulls_prepared_from_remote_before_repro(tmp_path, monkeypatch):
     assert _FakeRepo.push_calls == []
 
 
-def test_fetches_json_from_vps_after_dvc_restores_large_artifacts(tmp_path, monkeypatch):
+def test_fetches_json_from_minio_after_dvc_restores_large_artifacts(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     _FakeRepo.pull_materializes_many = [
         tmp_path / "index.parquet",
@@ -188,7 +205,7 @@ def test_fetches_json_from_vps_after_dvc_restores_large_artifacts(tmp_path, monk
         (prepared_dir / "label_encoder.json").write_text("encoder")
         return [prepared_dir / "splits.json", prepared_dir / "label_encoder.json"]
 
-    monkeypatch.setattr(download_module, "download_prepared_http_artifacts", _fake_download)
+    monkeypatch.setattr(download_module, "download_prepared_minio_artifacts", _fake_download)
 
     ensure_prepared_data(tmp_path, tmp_path)
 
@@ -208,29 +225,54 @@ def test_missing_sequence_dir_triggers_prepared_fetch_or_repro(tmp_path, monkeyp
     assert _FakeRepo.push_calls == [{"targets": ["prepare", "splits"], "remote": "bfrb-data"}]
 
 
-def test_download_prepared_http_artifacts_fetches_missing_files(tmp_path, monkeypatch):
-    class _Response:
-        content = b"downloaded"
-
-        def raise_for_status(self):
-            return None
-
+def test_download_minio_object_streams_to_partial_then_renames(tmp_path, monkeypatch):
     calls = []
 
-    def _fake_get(url, timeout):
-        calls.append({"url": url, "timeout": timeout})
-        return _Response()
+    class _FakeS3:
+        def open(self, path, mode):
+            from io import BytesIO
 
-    monkeypatch.setattr(download_module.requests, "get", _fake_get)
+            calls.append({"path": path, "mode": mode})
+            return BytesIO(b"downloaded")
 
-    downloaded = download_prepared_http_artifacts(tmp_path, base_url="http://example.test/base/")
+    monkeypatch.setattr(download_module, "_s3_filesystem", lambda **_kwargs: _FakeS3())
+
+    path = download_minio_object("train.csv", tmp_path / "train.csv")
+
+    assert path == tmp_path / "train.csv"
+    assert path.read_bytes() == b"downloaded"
+    assert not (tmp_path / "train.csv.part").exists()
+    assert calls == [{"path": "dataset/train.csv", "mode": "rb"}]
+
+
+def test_download_prepared_minio_artifacts_fetches_missing_files(tmp_path, monkeypatch):
+    calls = []
+
+    def _fake_download(object_name, destination, **kwargs):
+        calls.append({"object_name": object_name, "destination": destination, **kwargs})
+        destination.write_bytes(b"downloaded")
+        return destination
+
+    monkeypatch.setattr(download_module, "download_minio_object", _fake_download)
+
+    downloaded = download_prepared_minio_artifacts(tmp_path)
 
     assert downloaded == [tmp_path / "splits.json", tmp_path / "label_encoder.json"]
     assert (tmp_path / "splits.json").read_bytes() == b"downloaded"
     assert (tmp_path / "label_encoder.json").read_bytes() == b"downloaded"
     assert calls == [
-        {"url": "http://example.test/base/splits.json", "timeout": 30},
-        {"url": "http://example.test/base/label_encoder.json", "timeout": 30},
+        {
+            "object_name": "splits.json",
+            "destination": tmp_path / "splits.json",
+            "bucket": "dataset",
+            "endpoint_url": "https://s3.basaryilmaz.com",
+        },
+        {
+            "object_name": "label_encoder.json",
+            "destination": tmp_path / "label_encoder.json",
+            "bucket": "dataset",
+            "endpoint_url": "https://s3.basaryilmaz.com",
+        },
     ]
 
 
@@ -238,7 +280,7 @@ def test_ensure_raw_noop_when_present(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     raw = tmp_path / "train.csv"
     raw.write_text("x")
-    ensure_raw_data(tmp_path, raw, "comp")
+    ensure_raw_data(tmp_path, raw)
     assert _FakeRepo.pull_calls == []
     assert _FakeRepo.add_calls == []
 
@@ -247,27 +289,36 @@ def test_ensure_raw_pulls_from_remote(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     raw = tmp_path / "train.csv"
     _FakeRepo.pull_materializes = raw  # remote has it -> pull succeeds
-    ensure_raw_data(tmp_path, raw, "comp")
+    ensure_raw_data(tmp_path, raw)
     assert _FakeRepo.pull_calls == [{"targets": [str(raw)], "remote": "bfrb-data"}]
-    assert _FakeRepo.add_calls == []  # no HTTP fallback
+    assert _FakeRepo.add_calls == []
 
 
-def test_ensure_raw_falls_back_to_download_and_caches(tmp_path, monkeypatch):
+def test_ensure_raw_downloads_from_minio_before_dvc(tmp_path, monkeypatch):
     monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
     raw = tmp_path / "train.csv"
 
-    calls = {}
+    def _fake_download(object_name, destination, **_kwargs):
+        assert object_name == "train.csv"
+        destination.write_text("downloaded")
+        return destination
 
-    def _fake_fetch(url, raw_dir):
-        calls["args"] = (url, raw_dir)
-        path = raw_dir / "train.csv"
-        path.write_text("downloaded")
-        return path
+    monkeypatch.setattr(download_module, "download_minio_object", _fake_download)
 
-    monkeypatch.setattr("bfrb_sensors.data.fetch_raw.fetch_raw_dataset", _fake_fetch)
+    ensure_raw_data(tmp_path, raw)
 
-    ensure_raw_data(tmp_path, raw, "http://example.test/train.csv")
+    assert raw.read_text() == "downloaded"
+    assert _FakeRepo.pull_calls == []
+    assert _FakeRepo.add_calls == []
 
-    assert calls["args"] == ("http://example.test/train.csv", raw.parent)
-    assert _FakeRepo.add_calls == [str(raw)]
-    assert _FakeRepo.push_calls == [{"targets": [str(raw)], "remote": "bfrb-data"}]
+
+def test_ensure_raw_raises_when_minio_sources_cannot_restore_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(download_module, "DvcRepo", _FakeRepo)
+    _FakeRepo.pull_error = RuntimeError("missing raw cache")
+    raw = tmp_path / "train.csv"
+
+    with pytest.raises(FileNotFoundError, match="remote MinIO dataset object"):
+        ensure_raw_data(tmp_path, raw)
+
+    assert _FakeRepo.add_calls == []
+    assert _FakeRepo.push_calls == []

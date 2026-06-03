@@ -5,7 +5,3 @@ defaults:
   - datamodule: default
 
 auto_prepare: true
-
-download:
-  # Direct raw CSV mirror; streamed to disk because the file is large.
-  url: https://router.basaryilmaz.com/train.csv

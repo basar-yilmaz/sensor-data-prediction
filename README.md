@@ -114,6 +114,8 @@ Requires Python 3.11, [`uv`](https://docs.astral.sh/uv/), Docker, and Docker Com
 
 ```bash
 uv sync
+# or
+make install
 ```
 
 ### 2. Create `.env`
@@ -122,41 +124,66 @@ Copy the example environment file:
 
 ```bash
 cp .env.example .env
+# or
+make env
 ```
 
-The defaults are enough for local development:
+The defaults point dataset downloads at the shared remote MinIO deployment:
 
 ```env
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
+MINIO_ENDPOINT_URL=https://s3.basaryilmaz.com
+MINIO_ROOT_USER=readonly
+MINIO_ROOT_PASSWORD=...
+BFRB_DVC_PUSH_DATA=true
 ```
 
-These credentials must match the DVC remote credentials in `.dvc/config`. The default
-remote is `bfrb-data` at `http://localhost:9000`.
+The `readonly` account is scoped to the `dataset` bucket. It is used only for direct
+downloads of `train.csv`, `splits.json`, and `label_encoder.json`. DVC remotes for
+`bfrb-data` and `bfrb-models` are configured separately in `.dvc/config` because
+model/prepared-data buckets require different permissions. With the checked-in DVC
+remote config, locally reproduced prepared artifacts are cached in `bfrb-data`, and
+trained model artifacts are pushed to `bfrb-models`.
+
+### Remote Storage Layout
+
+All project data comes from the remote MinIO deployment at
+`https://s3.basaryilmaz.com`; there is no local MinIO service and no public/raw HTTP
+download fallback.
+
+- `dataset`: source-of-truth input bucket. It contains only `train.csv`,
+  `splits.json`, and `label_encoder.json`.
+- `bfrb-data`: DVC cache bucket for internal generated artifacts, such as prepared
+  sequence parquet files, indexes, and pipeline outputs.
+- `bfrb-models`: DVC cache bucket for trained model artifacts.
 
 ### 3. Start Local Services
 
-Start MinIO and MLflow:
+Start MLflow:
 
 ```bash
-docker compose up -d minio-init mlflow
+docker compose up -d mlflow
+# or
+make services
 ```
 
 Services:
 
-- MinIO S3 API: `http://127.0.0.1:9000`
-- MinIO console: `http://127.0.0.1:9001`
 - MLflow: `http://127.0.0.1:8080`
 
-`minio-init` creates the required buckets:
-
-- `bfrb-data`
-- `bfrb-models`
+MinIO is deployed remotely. Dataset files are read from the remote `dataset`
+bucket, and DVC model/prepared-data artifacts use the remote `bfrb-data` and
+`bfrb-models` buckets.
 
 ## Train
 
 ```bash
 uv run bfrb train
+```
+
+or
+
+```bash
+make train
 ```
 
 Training automatically handles data setup. You do not need to run the data processing
@@ -166,39 +193,38 @@ On a fresh machine, `bfrb train` will:
 
 1. Check that MLflow is reachable.
 2. Ensure `data/raw/train.csv` exists.
-3. Try to pull raw data from the DVC remote `bfrb-data`.
-4. If raw data is missing from the remote, download the public dataset mirror and push
-   the raw CSV to MinIO through DVC.
+3. Download `train.csv` from the remote MinIO `dataset` bucket when missing.
+4. Try the MinIO DVC remote `bfrb-data` only if the direct `dataset` object download fails.
 5. Ensure prepared data exists.
 6. Download the small prepared JSON artifacts, `splits.json` and
-   `label_encoder.json`, from `https://router.basaryilmaz.com/` when missing.
-7. Try to pull remaining prepared artifacts from the DVC remote.
+   `label_encoder.json`, from the remote MinIO `dataset` bucket when missing.
+7. Try to pull remaining prepared artifacts from the `bfrb-data` DVC remote.
 8. If prepared artifacts are missing from the remotes, run the DVC `prepare` and
-   `splits` stages locally and push DVC-cached outputs to MinIO.
+   `splits` stages locally and push the DVC-cached prepared artifacts to `bfrb-data`.
 9. Start model training.
 
-This keeps `splits.json` and `label_encoder.json` out of Git while every machine uses
-the same train/validation/test split and label mapping.
+This keeps source data and generated artifacts out of Git while every machine uses the
+same train/validation/test split and label mapping from the `dataset` bucket.
 
 ## Common Training Overrides
 
 Hydra overrides can be passed directly after the command:
 
 ```bash
-uv run bfrb train training.max_epochs=60
-uv run bfrb train training.seed=123
-uv run bfrb train model.use_tof_raw=false
+make train ARGS="training.max_epochs=60"
+make train ARGS="training.seed=123"
+make train ARGS="model.use_tof_raw=false"
 ```
 
 Training outputs include checkpoints under `artifacts/checkpoints/`, plots under
-`plots/`, and metrics/artifacts in MLflow. After training, the best checkpoint is also
+`plots/`, and metrics/artifacts in MLflow. After training, the best checkpoint is
 copied to `models/temporal_conv_gru_tof.ckpt`, tracked with DVC, and pushed to the
 `bfrb-models` MinIO bucket. This creates `models/temporal_conv_gru_tof.ckpt.dvc`.
 
 To fetch the latest DVC-tracked model from the s3:
 
 ```bash
-uv run dvc pull models/temporal_conv_gru_tof.ckpt.dvc -r bfrb-models
+make pull_model
 ```
 
 ## Optional Data Commands
@@ -209,26 +235,28 @@ required before `uv run bfrb train`.
 ### Fetch Data
 
 ```bash
-uv run bfrb fetch
+make fetch
 ```
 
 Ensures raw and prepared data are available. It pulls from MinIO when possible, falls
-back to the public dataset download for raw data, and prepares/pushes missing prepared
-artifacts when needed.
+back to the MinIO DVC remote only if direct `dataset` object download fails, and
+prepares missing artifacts locally when needed. When `BFRB_DVC_PUSH_DATA=true`,
+locally reproduced prepared artifacts are pushed to `bfrb-data` through the DVC remote
+credentials in `.dvc/config`. No non-MinIO download source is used.
 
 ### Pull DVC Data Only
 
 ```bash
-uv run bfrb download
+make download
 ```
 
-Runs a DVC pull from the configured remote. This does not use the public dataset
-download fallback.
+Runs a DVC pull from the configured MinIO DVC remote (`bfrb-data`). This does not use
+the direct `dataset` bucket object downloader.
 
 ### Reproduce DVC Pipeline
 
 ```bash
-uv run dvc repro
+make repro
 ```
 
 Runs the DVC pipeline stages:
@@ -239,11 +267,24 @@ Runs the DVC pipeline stages:
 ### Run Individual Data Stages
 
 ```bash
-uv run bfrb prepare
-uv run bfrb splits
+make prepare
+make splits
 ```
 
 Use these only when you explicitly want to run one stage outside the full DVC pipeline.
+
+### Clear Local Data And Cache
+
+```bash
+make clean_data
+```
+
+Removes local generated data, model binaries, plots, MLflow outputs, Hydra outputs, and
+prunes unused objects from the local DVC cache. To remove the entire local DVC cache:
+
+```bash
+make clean_dvc_cache
+```
 
 ## Baseline Model
 
@@ -253,8 +294,8 @@ so their scores are directly comparable. It collapses each variable-length seque
 per-channel summary statistics over the IMU channels (no thermopile / ToF).
 
 ```bash
-uv run bfrb train_baseline
-uv run bfrb train_baseline baseline.xgboost.max_depth=8
+make train_baseline
+make train_baseline ARGS="baseline.xgboost.max_depth=8"
 ```
 
 Baseline training similarly creates `models/xgboost_baseline.joblib.dvc` and pushes the
@@ -262,5 +303,5 @@ actual `models/xgboost_baseline.joblib` file to `bfrb-models`. To restore it aft
 pointer file exists:
 
 ```bash
-uv run dvc pull models/xgboost_baseline.joblib.dvc -r bfrb-models
+make pull_baseline
 ```

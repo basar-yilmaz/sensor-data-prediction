@@ -215,7 +215,6 @@ def train_from_config(cfg: DictConfig) -> None:
     ensure_raw_data(
         repo_root,
         Path(cfg.data.prepare.raw_csv),
-        str(cfg.data.download.url),
     )
     if bool(cfg.data.auto_prepare):
         ensure_prepared_data(repo_root, prepared_dir)

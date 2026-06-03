@@ -63,7 +63,7 @@ def train_baseline_from_config(cfg: DictConfig) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     prepared_dir = Path(cfg.data.datamodule.prepared_dir)
     logger.info("Ensuring raw data is available (DVC remote or dataset download)")
-    ensure_raw_data(repo_root, Path(cfg.data.prepare.raw_csv), str(cfg.data.download.url))
+    ensure_raw_data(repo_root, Path(cfg.data.prepare.raw_csv))
     if bool(cfg.data.auto_prepare):
         ensure_prepared_data(repo_root, prepared_dir)
 

@@ -85,14 +85,13 @@ class Commands:
         download_data(repo_root=repo_root)
 
     def fetch(self, *overrides: str) -> None:
-        """One-command data acquisition: ensure raw (MinIO or HTTP mirror) + prepared data."""
+        """One-command data acquisition: ensure raw and prepared data from MinIO."""
         cfg = _load_config(list(overrides))
         _configure_logging(cfg)
         repo_root = Path(__file__).resolve().parent.parent
         ensure_raw_data(
             repo_root,
             Path(cfg.data.prepare.raw_csv),
-            str(cfg.data.download.url),
         )
         ensure_prepared_data(repo_root, Path(cfg.data.prepare.prepared_dir))
 
