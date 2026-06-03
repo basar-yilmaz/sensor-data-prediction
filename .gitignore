@@ -83,7 +83,9 @@ Thumbs.db
 # so the *.dvc pointers stay tracked. Prepared outputs are restored from DVC or
 # the VPS-hosted JSON artifact mirror.
 /data/prepared/*
-/artifacts
+/artifacts/*
+# but keep DVC pointers so artifacts like the scaler are restorable from the remote.
+!/artifacts/*.dvc
 .dvc/cache
 .dvc/tmp
 

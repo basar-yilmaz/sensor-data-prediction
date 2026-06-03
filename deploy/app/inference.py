@@ -88,7 +88,7 @@ class ModelBundle:
 
 def load_model_bundle(settings: Settings) -> ModelBundle:
     """Build the model, load the checkpoint, return everything inference needs."""
-    # Both the trained checkpoint and the label encoder may live only in DVC
+    # The trained checkpoint, label encoder, and scaler may live only in DVC
     # remotes (e.g. on a fresh checkout). Restore each from its remote on demand.
     ensure_dvc_artifact(
         settings.model_checkpoint,
@@ -97,6 +97,11 @@ def load_model_bundle(settings: Settings) -> ModelBundle:
     )
     ensure_dvc_artifact(
         settings.label_encoder_path,
+        repo_root=settings.repo_root,
+        remote=settings.data_remote,
+    )
+    ensure_dvc_artifact(
+        settings.scaler_path,
         repo_root=settings.repo_root,
         remote=settings.data_remote,
     )
