@@ -12,6 +12,34 @@
 </section>
 {% endif %}
 
+<section class="card card--model" id="model-card">
+  <h2 class="card__title">Model</h2>
+  <p class="card__hint">
+    Active checkpoint:
+    <code id="active-checkpoint">{{ checkpoint or "none" }}</code>
+    {% if device %}<span class="model__device">on {{ device }}</span>{% endif %}
+  </p>
+  <p class="card__hint">
+    Run a different trained model by selecting a Lightning <code>.ckpt</code> file
+    from your filesystem. It loads with the configured scaler and label encoder.
+  </p>
+
+  <form id="ckpt-form" enctype="multipart/form-data" novalidate>
+    <input type="file" id="ckpt-input" name="file" accept=".ckpt" hidden />
+    <div class="actions actions--model">
+      <button type="button" id="ckpt-browse" class="btn btn--ghost">Choose .ckpt file</button>
+      <span id="ckpt-name" class="file-name file-name--muted">No file selected</span>
+      <button type="submit" id="ckpt-load" class="btn btn--primary" disabled>Load model</button>
+    </div>
+  </form>
+
+  <div class="progress" id="ckpt-progress" hidden>
+    <div class="progress__bar"></div>
+  </div>
+  <div class="error" id="ckpt-error" hidden></div>
+  <div class="notice" id="ckpt-notice" hidden></div>
+</section>
+
 <section class="grid">
   <article class="card card--upload" id="upload-card">
     <h2 class="card__title">1. Upload sensor CSV</h2>

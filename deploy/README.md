@@ -47,14 +47,27 @@ uv --project deploy run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 Open <http://127.0.0.1:8000>.
 
-The service loads the model checkpoint at startup. By default it picks the
-lexicographically-last `*.ckpt` under `artifacts/checkpoints/`. Set
-`BFRB_MODEL_CHECKPOINT` to point at a specific file:
+Inference runs on **CPU by default**; set `BFRB_DEVICE=cuda` to use a GPU (it
+falls back to CPU with a warning if no GPU is available).
+
+The service loads the model checkpoint at startup. By default it uses
+`models/temporal_conv_gru_tof.ckpt`. If that file is not on local disk it is
+pulled from the `bfrb-models` DVC remote automatically; likewise the label
+encoder (`data/prepared/label_encoder.json`) is pulled from `bfrb-data` when
+missing. A fresh checkout can therefore serve without re-running the pipeline,
+as long as the DVC remotes are reachable.
+
+`BFRB_MODEL_CHECKPOINT` can point at a specific file or a directory (the newest
+`*.ckpt` underneath wins):
 
 ```bash
 BFRB_MODEL_CHECKPOINT=artifacts/checkpoints/<run_id>/epoch=42-val_hierarchical_f1=0.71.ckpt \
   uv --project deploy run bfrb-serve
 ```
+
+You can also swap the model at runtime from the web UI: the **Model** card lets
+you pick a trained `.ckpt` from your filesystem and load it without restarting
+(see `POST /api/load_model`).
 
 ## Configuration
 
@@ -66,10 +79,14 @@ All settings are environment variables, prefixed with `BFRB_`.
 | `BFRB_PORT`               | `8000`                                 | Bind port                                       |
 | `BFRB_LOG_LEVEL`          | `info`                                 | Uvicorn log level                               |
 | `BFRB_RELOAD`             | `false`                                | Enable autoreload (dev only)                    |
-| `BFRB_MODEL_CHECKPOINT`   | `artifacts/checkpoints`                | File or directory                               |
+| `BFRB_DEVICE`             | `cpu`                                  | Inference device (`cpu` or `cuda`)              |
+| `BFRB_MODEL_CHECKPOINT`   | `models/temporal_conv_gru_tof.ckpt`    | File or directory; pulled from DVC if missing   |
 | `BFRB_SCALER_PATH`        | `artifacts/scaler.joblib`              | Fitted StandardScaler                           |
-| `BFRB_LABEL_ENCODER_PATH` | `data/prepared/label_encoder.json`     | Gesture id map                                  |
+| `BFRB_LABEL_ENCODER_PATH` | `data/prepared/label_encoder.json`     | Gesture id map; pulled from DVC if missing      |
 | `BFRB_SAMPLE_DATA_PATH`   | `deploy/sample_data/demo_sequence.csv` | Demo CSV                                        |
+| `BFRB_REPO_ROOT`          | repo root                              | Root used for DVC pulls / uploaded checkpoints  |
+| `BFRB_DATA_REMOTE`        | `bfrb-data`                            | DVC remote for the label encoder                |
+| `BFRB_MODEL_REMOTE`       | `bfrb-models`                          | DVC remote for the checkpoint                   |
 | `BFRB_HIDDEN_DIM`         | `128`                                  | Model hidden dim                                |
 | `BFRB_NUM_CONV_BLOCKS`    | `2`                                    | Residual Conv1D blocks                          |
 | `BFRB_GRU_LAYERS`         | `1`                                    | BiGRU layers                                    |
@@ -138,6 +155,13 @@ with HTTP 400.
 JSON body: a list of per-timestep records (same column shape as the CSV
 format). Useful from scripts / curl.
 
+### `POST /api/load_model`
+
+Multipart upload with a `file` field (a `.ckpt`). Stores the checkpoint under
+`artifacts/uploaded_checkpoints/` and rebuilds the active model bundle from it
+(reusing the configured scaler and label encoder). Returns the same payload as
+`GET /api/health`. Backs the **Model** card in the web UI.
+
 ## CSV format
 
 One row per timestep. Required columns:
@@ -161,7 +185,9 @@ don't require a real checkpoint or scaler on disk.
 
 ## Updating the model
 
-The deploy service loads whatever checkpoint lives on disk at startup. To
-swap in a new model, just retrain (`uv run bfrb train`) and restart
-`bfrb-serve`. The service picks the newest `*.ckpt` automatically; pin a
-specific file via `BFRB_MODEL_CHECKPOINT` if you need to.
+The deploy service loads `models/temporal_conv_gru_tof.ckpt` at startup,
+pulling it from the `bfrb-models` DVC remote when it is not already on disk. To
+swap in a new model you can either retrain (`uv run bfrb train`, which updates
+and pushes that checkpoint) and restart `bfrb-serve`, or upload a `.ckpt` at
+runtime via the **Model** card in the UI / `POST /api/load_model`. Pin a
+different startup checkpoint with `BFRB_MODEL_CHECKPOINT`.

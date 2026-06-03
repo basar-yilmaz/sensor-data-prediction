@@ -21,6 +21,7 @@ import torch
 from torch import nn
 
 from app.config import Settings
+from app.dvc_fetch import ensure_dvc_artifact
 from app.model_arch import TemporalConvGRUClassifier
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,19 @@ def _load_label_encoder(path: Path) -> dict[int, str]:
 
 def _load_scaler(path: Path) -> dict[str, np.ndarray]:
     return joblib.load(path)
+
+
+def _resolve_device(preference: str) -> torch.device:
+    """Pick the inference device, defaulting to CPU.
+
+    ``cuda`` is honored only when a GPU is actually available; otherwise we fall
+    back to CPU with a warning rather than crashing.
+    """
+    if preference == "cuda":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        logger.warning("device=cuda requested but no GPU is available; falling back to CPU")
+    return torch.device("cpu")
 
 
 def _resolve_checkpoint_path(path: Path) -> Path:
@@ -74,13 +88,26 @@ class ModelBundle:
 
 def load_model_bundle(settings: Settings) -> ModelBundle:
     """Build the model, load the checkpoint, return everything inference needs."""
+    # Both the trained checkpoint and the label encoder may live only in DVC
+    # remotes (e.g. on a fresh checkout). Restore each from its remote on demand.
+    ensure_dvc_artifact(
+        settings.model_checkpoint,
+        repo_root=settings.repo_root,
+        remote=settings.model_remote,
+    )
+    ensure_dvc_artifact(
+        settings.label_encoder_path,
+        repo_root=settings.repo_root,
+        remote=settings.data_remote,
+    )
+
     if not settings.scaler_path.exists():
         raise FileNotFoundError(f"Scaler not found at {settings.scaler_path}")
     if not settings.label_encoder_path.exists():
         raise FileNotFoundError(f"Label encoder not found at {settings.label_encoder_path}")
 
     checkpoint_path = _resolve_checkpoint_path(settings.model_checkpoint)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = _resolve_device(settings.device)
 
     model = TemporalConvGRUClassifier(
         input_dim=settings.input_dim,

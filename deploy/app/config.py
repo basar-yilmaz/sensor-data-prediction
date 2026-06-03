@@ -29,17 +29,25 @@ class Settings(BaseSettings):
     port: int = 8000
     log_level: Literal["debug", "info", "warning", "error"] = "info"
     reload: bool = False
+    # Inference device. Defaults to CPU; set BFRB_DEVICE=cuda to use the GPU.
+    device: Literal["cpu", "cuda"] = "cpu"
 
     model_checkpoint: Path = Field(
-        default=PROJECT_ROOT / "artifacts" / "checkpoints",
+        default=PROJECT_ROOT / "models" / "temporal_conv_gru_tof.ckpt",
         description=(
             "Path to a Lightning checkpoint file or to a directory; the newest "
-            "matching *.ckpt is auto-selected when a directory is given."
+            "matching *.ckpt is auto-selected when a directory is given. When the "
+            "configured file is missing it is pulled from the model DVC remote."
         ),
     )
     scaler_path: Path = PROJECT_ROOT / "artifacts" / "scaler.joblib"
     label_encoder_path: Path = PROJECT_ROOT / "data" / "prepared" / "label_encoder.json"
     sample_data_path: Path = PROJECT_ROOT / "deploy" / "sample_data" / "demo_sequence.csv"
+
+    repo_root: Path = PROJECT_ROOT
+    # DVC remotes used to restore artifacts that are not on local disk.
+    data_remote: str = "bfrb-data"  # label encoder (prepare stage output)
+    model_remote: str = "bfrb-models"  # trained checkpoint
 
     hidden_dim: int = 128
     num_conv_blocks: int = 2

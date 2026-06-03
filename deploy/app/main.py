@@ -102,6 +102,16 @@ def _parse_settings_overrides(overrides: list[str] | None = None) -> Settings:
     return Settings(_env_file=None)  # type: ignore[call-arg]
 
 
+def _health_payload(bundle: ModelBundle | None) -> HealthResponse:
+    return HealthResponse(
+        status="ok" if bundle is not None else "degraded",
+        model_loaded=bundle is not None,
+        checkpoint_path=str(bundle.checkpoint_path) if bundle else None,
+        device=str(bundle.device) if bundle else "cpu",
+        n_classes=bundle.num_classes if bundle else 0,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
@@ -165,14 +175,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/health", response_model=HealthResponse)
     async def health(request: Request) -> HealthResponse:
-        bundle: ModelBundle | None = request.app.state.bundle
-        return HealthResponse(
-            status="ok" if bundle is not None else "degraded",
-            model_loaded=bundle is not None,
-            checkpoint_path=str(bundle.checkpoint_path) if bundle else None,
-            device=str(bundle.device) if bundle else "cpu",
-            n_classes=bundle.num_classes if bundle else 0,
-        )
+        return _health_payload(request.app.state.bundle)
+
+    @app.post("/api/load_model", response_model=HealthResponse)
+    async def load_model_endpoint(
+        request: Request,
+        file: UploadFile = File(...),  # noqa: B008
+    ) -> HealthResponse:
+        """Load a user-supplied trained checkpoint and run inference with it.
+
+        The uploaded ``.ckpt`` is stored under ``artifacts/uploaded_checkpoints``
+        and the active model bundle is rebuilt from it (reusing the configured
+        scaler and label encoder). Replaces the in-memory model on success.
+        """
+        settings: Settings = request.app.state.settings
+        filename = Path(file.filename or "").name
+        if not filename.endswith(".ckpt"):
+            raise HTTPException(status_code=400, detail="expected a .ckpt checkpoint file")
+
+        uploads_dir = settings.repo_root / "artifacts" / "uploaded_checkpoints"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        dest = uploads_dir / filename
+        dest.write_bytes(await file.read())
+
+        override = settings.model_copy(update={"model_checkpoint": dest})
+        try:
+            bundle = load_model_bundle(override)
+        except Exception as exc:
+            logger.exception("Failed to load uploaded checkpoint %s", dest)
+            raise HTTPException(
+                status_code=400, detail=f"failed to load checkpoint: {exc}"
+            ) from exc
+
+        request.app.state.bundle = bundle
+        request.app.state.startup_error = None
+        logger.info("Switched active model to uploaded checkpoint %s", bundle.checkpoint_path)
+        return _health_payload(bundle)
 
     @app.get("/api/model_info", response_model=ModelInfoResponse)
     async def model_info(request: Request) -> ModelInfoResponse:

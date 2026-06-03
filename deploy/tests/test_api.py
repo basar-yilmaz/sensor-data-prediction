@@ -12,12 +12,11 @@ from typing import Any
 import numpy as np
 import pytest
 import torch
-from fastapi.testclient import TestClient
-
 from app.config import Settings
 from app.inference import ModelBundle
 from app.main import create_app
 from app.model_arch import TemporalConvGRUClassifier
+from fastapi.testclient import TestClient
 
 
 def _make_bundle(device: torch.device | None = None) -> ModelBundle:
@@ -74,6 +73,7 @@ def dummy_settings(tmp_path) -> Settings:
         scaler_path=tmp_path / "scaler.joblib",
         label_encoder_path=label_encoder,
         sample_data_path=tmp_path / "demo_sequence.csv",
+        repo_root=tmp_path,
         host="127.0.0.1",
         port=8000,
     )
@@ -189,6 +189,29 @@ def test_predict_json_endpoint(client_with_dummy_model, sample_csv_bytes):
     body = response.json()
     assert "predicted_gesture" in body
     assert len(body["sequence_predictions"]) == body["n_sequences"]
+
+
+def test_load_model_endpoint_swaps_checkpoint(client_with_dummy_model, dummy_settings):
+    response = client_with_dummy_model.post(
+        "/api/load_model",
+        files={"file": ("my_model.ckpt", b"fake-ckpt-bytes", "application/octet-stream")},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["model_loaded"] is True
+    assert body["n_classes"] == 18
+    # The uploaded checkpoint is persisted under the repo's uploads directory.
+    saved = dummy_settings.repo_root / "artifacts" / "uploaded_checkpoints" / "my_model.ckpt"
+    assert saved.exists()
+
+
+def test_load_model_endpoint_rejects_non_ckpt(client_with_dummy_model):
+    response = client_with_dummy_model.post(
+        "/api/load_model",
+        files={"file": ("weights.bin", b"data", "application/octet-stream")},
+    )
+    assert response.status_code == 400
+    assert "ckpt" in response.json()["detail"]
 
 
 def test_health_reports_degraded_when_model_missing(monkeypatch, dummy_settings):

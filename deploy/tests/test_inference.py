@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-
 from app.config import Settings
 from app.inference import load_model_bundle, predict
 from app.model_arch import TemporalConvGRUClassifier

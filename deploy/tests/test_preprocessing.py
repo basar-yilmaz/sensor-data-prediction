@@ -7,7 +7,6 @@ import io
 import numpy as np
 import pandas as pd
 import pytest
-
 from app.preprocessing import (
     PreprocessingError,
     _tof_per_sensor_stats,

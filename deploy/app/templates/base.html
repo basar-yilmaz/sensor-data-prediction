@@ -21,9 +21,9 @@
           <p class="brand__subtitle">Body-Focused Repetitive Behavior detection from wrist sensors</p>
         </div>
       </div>
-      <div class="status-pill {% if model_loaded %}status-pill--ok{% else %}status-pill--warn{% endif %}">
+      <div id="status-pill" class="status-pill {% if model_loaded %}status-pill--ok{% else %}status-pill--warn{% endif %}">
         <span class="status-pill__dot" aria-hidden="true"></span>
-        {% if model_loaded %}Model ready{% else %}Model not loaded{% endif %}
+        <span id="status-pill-text">{% if model_loaded %}Model ready{% else %}Model not loaded{% endif %}</span>
       </div>
     </div>
   </header>
@@ -34,8 +34,8 @@
 
   <footer class="site-footer">
     <div class="site-footer__inner">
-      <span>{% if checkpoint %}checkpoint: <code>{{ checkpoint }}</code>{% endif %}</span>
-      <span>{% if device %}device: <code>{{ device }}</code>{% endif %}</span>
+      <span>checkpoint: <code id="footer-checkpoint">{{ checkpoint or "—" }}</code></span>
+      <span>device: <code id="footer-device">{{ device or "—" }}</code></span>
     </div>
   </footer>
 

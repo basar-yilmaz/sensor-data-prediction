@@ -257,4 +257,85 @@
   });
 
   sampleButton.addEventListener("click", loadSample);
+
+  // --- Model checkpoint loading -------------------------------------------
+  const ckptForm = document.getElementById("ckpt-form");
+  const ckptInput = document.getElementById("ckpt-input");
+  const ckptBrowse = document.getElementById("ckpt-browse");
+  const ckptName = document.getElementById("ckpt-name");
+  const ckptLoad = document.getElementById("ckpt-load");
+  const ckptProgress = document.getElementById("ckpt-progress");
+  const ckptError = document.getElementById("ckpt-error");
+  const ckptNotice = document.getElementById("ckpt-notice");
+  const activeCheckpoint = document.getElementById("active-checkpoint");
+  const statusPill = document.getElementById("status-pill");
+  const statusPillText = document.getElementById("status-pill-text");
+  const footerCheckpoint = document.getElementById("footer-checkpoint");
+  const footerDevice = document.getElementById("footer-device");
+
+  let currentCkpt = null;
+
+  function setModelLoadedUi(health) {
+    const loaded = !!(health && health.model_loaded);
+    if (statusPill) {
+      statusPill.classList.toggle("status-pill--ok", loaded);
+      statusPill.classList.toggle("status-pill--warn", !loaded);
+    }
+    if (statusPillText) statusPillText.textContent = loaded ? "Model ready" : "Model not loaded";
+    if (loaded && health.checkpoint_path) {
+      if (activeCheckpoint) activeCheckpoint.textContent = health.checkpoint_path;
+      if (footerCheckpoint) footerCheckpoint.textContent = health.checkpoint_path;
+    }
+    if (loaded && health.device && footerDevice) footerDevice.textContent = health.device;
+    // Predictions become available as soon as a model is loaded.
+    if (loaded) {
+      sampleButton.disabled = false;
+      predictButton.disabled = !currentFile;
+    }
+  }
+
+  if (ckptForm) {
+    ckptBrowse.addEventListener("click", () => ckptInput.click());
+
+    ckptInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      currentCkpt = file || null;
+      ckptName.textContent = file ? `${file.name} (${formatBytes(file.size)})` : "No file selected";
+      ckptLoad.disabled = !file;
+      ckptError.hidden = true;
+      ckptNotice.hidden = true;
+    });
+
+    ckptForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!currentCkpt) return;
+      ckptError.hidden = true;
+      ckptNotice.hidden = true;
+      ckptLoad.disabled = true;
+      ckptBrowse.disabled = true;
+      ckptProgress.hidden = false;
+      try {
+        const formData = new FormData();
+        formData.append("file", currentCkpt);
+        const response = await fetch("/api/load_model", { method: "POST", body: formData });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = payload && payload.detail ? payload.detail : `Request failed (${response.status})`;
+          ckptError.textContent = message;
+          ckptError.hidden = false;
+          return;
+        }
+        setModelLoadedUi(payload);
+        ckptNotice.textContent = `Loaded ${currentCkpt.name} on ${payload.device} (${payload.n_classes} classes).`;
+        ckptNotice.hidden = false;
+      } catch (err) {
+        ckptError.textContent = `Network error: ${err && err.message ? err.message : err}`;
+        ckptError.hidden = false;
+      } finally {
+        ckptProgress.hidden = true;
+        ckptBrowse.disabled = false;
+        ckptLoad.disabled = !currentCkpt;
+      }
+    });
+  }
 })();

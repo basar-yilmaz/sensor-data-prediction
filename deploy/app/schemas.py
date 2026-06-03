@@ -26,7 +26,7 @@ class PredictionResponse(BaseModel):
     n_sequences: int = Field(ge=1)
     sequence_length: int = Field(ge=1)
     inference_ms: float = Field(ge=0.0)
-    sequence_predictions: list["SequencePrediction"]
+    sequence_predictions: list[SequencePrediction]
 
 
 class SequencePrediction(BaseModel):
