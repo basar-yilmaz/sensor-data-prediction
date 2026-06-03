@@ -118,45 +118,41 @@ uv sync
 make install
 ```
 
-### 2. Create `.env`
+### 2. Install Pre-commit Hooks
 
-Copy the example environment file:
+Code quality is enforced with `pre-commit` (Ruff lint + format, plus the standard
+file-hygiene hooks). Install the git hooks once after `uv sync`:
 
 ```bash
-cp .env.example .env
-# or
-make env
+uv run pre-commit install
 ```
 
-The defaults point dataset downloads at the shared remote MinIO deployment:
+Run all hooks against the whole repo at any time:
 
-```env
-MINIO_ENDPOINT_URL=https://s3.basaryilmaz.com
-MINIO_ROOT_USER=readonly
-MINIO_ROOT_PASSWORD=...
-BFRB_DVC_PUSH_DATA=true
+```bash
+uv run pre-commit run -a
 ```
 
-The `readonly` account is scoped to the `dataset` bucket. It is used only for direct
-downloads of `train.csv`, `splits.json`, and `label_encoder.json`. DVC remotes for
-`bfrb-data` and `bfrb-models` are configured separately in `.dvc/config` because
-model/prepared-data buckets require different permissions. With the checked-in DVC
-remote config, locally reproduced prepared artifacts are cached in `bfrb-data`, and
-trained model artifacts are pushed to `bfrb-models`.
+### 3. DVC Remotes
+
+DVC remotes for `bfrb-data` and `bfrb-models` are configured in `.dvc/config`; no
+`.env` file is required for the standard workflow. With the checked-in DVC remote
+config, raw data and prepared artifacts are pulled from `bfrb-data`, locally reproduced
+prepared artifacts are pushed back to `bfrb-data`, and trained model artifacts are
+pushed to `bfrb-models`.
 
 ### Remote Storage Layout
 
-All project data comes from the remote MinIO deployment at
-`https://s3.basaryilmaz.com`; there is no local MinIO service and no public/raw HTTP
-download fallback.
+All project data is accessed through DVC remotes backed by the remote MinIO deployment
+at `https://s3.basaryilmaz.com`; there is no local MinIO service, direct S3 client
+download path, or public/raw HTTP download fallback.
 
-- `dataset`: source-of-truth input bucket. It contains only `train.csv`,
-  `splits.json`, and `label_encoder.json`.
-- `bfrb-data`: DVC cache bucket for internal generated artifacts, such as prepared
-  sequence parquet files, indexes, and pipeline outputs.
+- `bfrb-data`: DVC cache bucket for raw data and internal generated artifacts, such as
+  prepared sequence parquet files, indexes, split files, label encoders, and pipeline
+  outputs.
 - `bfrb-models`: DVC cache bucket for trained model artifacts.
 
-### 3. Start Local Services
+### 4. Start Local Services
 
 Start MLflow:
 
@@ -170,9 +166,8 @@ Services:
 
 - MLflow: `http://127.0.0.1:8080`
 
-MinIO is deployed remotely. Dataset files are read from the remote `dataset`
-bucket, and DVC model/prepared-data artifacts use the remote `bfrb-data` and
-`bfrb-models` buckets.
+MinIO is deployed remotely. Dataset, prepared-data, and model artifacts are accessed
+through DVC remotes backed by the remote `bfrb-data` and `bfrb-models` buckets.
 
 ## Train
 
@@ -193,18 +188,15 @@ On a fresh machine, `bfrb train` will:
 
 1. Check that MLflow is reachable.
 2. Ensure `data/raw/train.csv` exists.
-3. Download `train.csv` from the remote MinIO `dataset` bucket when missing.
-4. Try the MinIO DVC remote `bfrb-data` only if the direct `dataset` object download fails.
-5. Ensure prepared data exists.
-6. Download the small prepared JSON artifacts, `splits.json` and
-   `label_encoder.json`, from the remote MinIO `dataset` bucket when missing.
-7. Try to pull remaining prepared artifacts from the `bfrb-data` DVC remote.
-8. If prepared artifacts are missing from the remotes, run the DVC `prepare` and
+3. Pull `data/raw/train.csv` from the MinIO-backed DVC remote `bfrb-data` when missing.
+4. Ensure prepared data exists.
+5. Pull prepared artifacts from the `bfrb-data` DVC remote.
+6. If prepared artifacts are missing from the remotes, run the DVC `prepare` and
    `splits` stages locally and push the DVC-cached prepared artifacts to `bfrb-data`.
-9. Start model training.
+7. Start model training.
 
 This keeps source data and generated artifacts out of Git while every machine uses the
-same train/validation/test split and label mapping from the `dataset` bucket.
+same DVC-tracked train/validation/test split and label mapping from `bfrb-data`.
 
 ## Common Training Overrides
 
@@ -214,6 +206,14 @@ Hydra overrides can be passed directly after the command:
 make train ARGS="training.max_epochs=60"
 make train ARGS="training.seed=123"
 make train ARGS="model.use_tof_raw=false"
+```
+
+Predefined experiment configs under `configs/experiment/` bundle related overrides and
+can be selected as a group:
+
+```bash
+make train ARGS="+experiment=tof_no_demo"
+make train ARGS="+experiment=tof_no_demo_aux_01"
 ```
 
 Training outputs include checkpoints under `artifacts/checkpoints/`, plots under
@@ -239,10 +239,10 @@ make fetch
 ```
 
 Ensures raw and prepared data are available. It pulls from MinIO when possible, falls
-back to the MinIO DVC remote only if direct `dataset` object download fails, and
-prepares missing artifacts locally when needed. When `BFRB_DVC_PUSH_DATA=true`,
-locally reproduced prepared artifacts are pushed to `bfrb-data` through the DVC remote
-credentials in `.dvc/config`. No non-MinIO download source is used.
+back to local DVC repro when prepared artifacts are not yet cached, and prepares missing
+artifacts locally when needed. Locally reproduced prepared artifacts are pushed to
+`bfrb-data` through the DVC remote credentials in `.dvc/config`. No non-DVC download
+source is used.
 
 ### Pull DVC Data Only
 
@@ -250,8 +250,7 @@ credentials in `.dvc/config`. No non-MinIO download source is used.
 make download
 ```
 
-Runs a DVC pull from the configured MinIO DVC remote (`bfrb-data`). This does not use
-the direct `dataset` bucket object downloader.
+Runs a DVC pull from the configured MinIO DVC remote (`bfrb-data`).
 
 ### Reproduce DVC Pipeline
 

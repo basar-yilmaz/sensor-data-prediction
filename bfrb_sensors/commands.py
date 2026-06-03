@@ -11,7 +11,7 @@ from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf
 
 from bfrb_sensors.data.datamodule import BFRBDataModule, DataModuleConfig
-from bfrb_sensors.data.download import download_data, ensure_prepared_data, ensure_raw_data
+from bfrb_sensors.data.download import ensure_prepared_data, ensure_raw_data, pull_dvc_data
 from bfrb_sensors.data.prepare import PrepareConfig, prepare
 from bfrb_sensors.data.splits import SplitsConfig, make_splits
 
@@ -82,7 +82,7 @@ class Commands:
         cfg = _load_config(list(overrides))
         _configure_logging(cfg)
         repo_root = Path(__file__).resolve().parent.parent
-        download_data(repo_root=repo_root)
+        pull_dvc_data(repo_root=repo_root)
 
     def fetch(self, *overrides: str) -> None:
         """One-command data acquisition: ensure raw and prepared data from MinIO."""

@@ -3,10 +3,10 @@
 ['remote "bfrb-data"']
     url = s3://bfrb-data
     endpointurl = https://s3.basaryilmaz.com
-    access_key_id = readonly
-    secret_access_key = LX4NLJN8tKc7t8gZAFw9wSAijQ3EwzD
+    access_key_id = admin
+    secret_access_key = YrFX9JG41PDLGcwuO1ggC3SXrorq
 ['remote "bfrb-models"']
     url = s3://bfrb-models
     endpointurl = https://s3.basaryilmaz.com
-    access_key_id = readonly
-    secret_access_key = LX4NLJN8tKc7t8gZAFw9wSAijQ3EwzD
+    access_key_id = admin
+    secret_access_key = YrFX9JG41PDLGcwuO1ggC3SXrorq

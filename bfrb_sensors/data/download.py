@@ -1,20 +1,30 @@
-"""Wrapper around `dvc pull` for grader-friendly one-command data acquisition."""
+"""DVC-backed data acquisition helpers for the remote MinIO storage."""
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 
-import requests
 from dvc.repo import Repo as DvcRepo
 
 logger = logging.getLogger(__name__)
 
-PREPARED_ARTIFACT_BASE_URL = "https://router.basaryilmaz.com"
-PREPARED_HTTP_ARTIFACTS = ("splits.json", "label_encoder.json")
+DATA_DVC_PUSH_ENV = "BFRB_DVC_PUSH_DATA"
+PREPARED_DVC_TARGETS = ["prepare", "splits"]
 
 
-def download_data(
+def _data_dvc_push_enabled(push_to_dvc: bool | None = None) -> bool:
+    if push_to_dvc is not None:
+        return push_to_dvc
+    import os
+
+    value = os.getenv(DATA_DVC_PUSH_ENV)
+    if value is None:
+        return True
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def pull_dvc_data(
     repo_root: Path,
     remote: str = "bfrb-data",
     targets: list[str] | None = None,
@@ -28,9 +38,9 @@ def download_data(
     """
     repo_root = Path(repo_root).resolve()
     if targets:
-        logger.info("Pulling DVC targets %s from remote %r", targets, remote)
+        logger.info("Pulling DVC targets %s from MinIO remote %r", targets, remote)
     else:
-        logger.info("Pulling all data from DVC remote %r (repo=%s)", remote, repo_root)
+        logger.info("Pulling all data from MinIO DVC remote %r (repo=%s)", remote, repo_root)
     try:
         with DvcRepo(str(repo_root)) as repo:
             repo.pull(targets=targets, remote=remote)
@@ -42,25 +52,19 @@ def download_data(
             exc,
         )
         raise
-    logger.info("DVC pull complete for remote %r", remote)
+    logger.info("DVC pull complete for MinIO remote %r", remote)
 
 
 def ensure_raw_data(
     repo_root: Path,
     raw_csv: Path,
-    dataset_url: str,
     remote: str = "bfrb-data",
 ) -> None:
     """Ensure the raw CSV is present, fetching it once if needed.
 
     Resolution order:
       1. already on disk -> no-op;
-      2. pull from the DVC remote (MinIO);
-      3. download the raw CSV over HTTP, then ``dvc add`` + ``dvc push`` to cache
-         it in MinIO.
-
-    This realizes the "download once, then cache in MinIO" flow: the first run on a
-    fresh remote hits the dataset URL, every later run pulls from MinIO.
+      2. pull the DVC-tracked raw CSV from the configured MinIO remote.
     """
     repo_root = Path(repo_root).resolve()
     raw_csv = Path(raw_csv)
@@ -70,109 +74,66 @@ def ensure_raw_data(
         return
 
     try:
-        download_data(repo_root, remote=remote, targets=[str(raw_csv)])
-    except Exception:
+        pull_dvc_data(repo_root, remote=remote, targets=[str(raw_csv)])
+    except Exception as exc:
         logger.warning(
-            "Could not pull raw data from remote %r; falling back to raw CSV download.",
+            "Could not pull raw data from MinIO DVC remote %r: %s",
             remote,
+            exc,
         )
 
     if raw_csv.exists():
         return
 
-    from bfrb_sensors.data.fetch_raw import fetch_raw_dataset
-
-    logger.info("Raw data not in remote; downloading raw CSV from %s", dataset_url)
-    fetch_raw_dataset(dataset_url, raw_csv.parent)
-
-    logger.info("Caching raw data in DVC remote %r (dvc add + push)", remote)
-    with DvcRepo(str(repo_root)) as repo:
-        repo.add(str(raw_csv))
-        repo.push(targets=[str(raw_csv)], remote=remote)
-    logger.info("Raw data cached in remote %r", remote)
-
-
-def download_prepared_http_artifacts(
-    prepared_dir: Path,
-    base_url: str = PREPARED_ARTIFACT_BASE_URL,
-) -> list[Path]:
-    """Download small prepared artifacts that are hosted outside Git/DVC."""
-    prepared_dir = Path(prepared_dir)
-    prepared_dir.mkdir(parents=True, exist_ok=True)
-    downloaded: list[Path] = []
-    for filename in PREPARED_HTTP_ARTIFACTS:
-        path = prepared_dir / filename
-        if path.exists():
-            continue
-
-        url = f"{base_url.rstrip('/')}/{filename}"
-        logger.info("Downloading prepared artifact %s from %s", path, url)
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        path.write_bytes(response.content)
-        downloaded.append(path)
-    return downloaded
+    raise FileNotFoundError(
+        f"Raw data missing at {raw_csv}; DVC remote {remote!r} did not restore it."
+    )
 
 
 def ensure_prepared_data(
     repo_root: Path,
     prepared_dir: Path,
     remote: str = "bfrb-data",
+    push_to_dvc: bool | None = None,
 ) -> None:
     """Ensure prepared data is present, preferring remotes before repro.
 
-    Large prepared artifacts come from DVC. The small split and label-map JSON files
-    are hosted on the VPS so they can stay out of the Git repository.
+    Prepared artifacts come from the DVC remote or local repro. Reproduced artifacts
+    are pushed back to the configured MinIO remote when data pushes are enabled.
     """
     prepared_dir = Path(prepared_dir)
     dvc_required = [
         prepared_dir / "sequences",
         prepared_dir / "index.parquet",
     ]
-    http_required = [
+    dvc_json_required = [
         prepared_dir / "label_encoder.json",
         prepared_dir / "splits.json",
     ]
-    required = dvc_required + http_required
+    required = dvc_required + dvc_json_required
 
     missing = [path for path in required if not path.exists()]
     if not missing:
         logger.info("Prepared data present; skipping fetch/repro")
         return
 
-    if all(path.exists() for path in dvc_required):
-        try:
-            download_prepared_http_artifacts(prepared_dir)
-        except Exception as exc:
-            logger.warning("Could not download prepared JSON artifacts from VPS: %s", exc)
-
-        missing = [path for path in required if not path.exists()]
-        if not missing:
-            logger.info("Prepared data restored from VPS")
-            return
-
     logger.info(
-        "Prepared data missing (%s); trying DVC remote %r first",
+        "Prepared data missing (%s); trying DVC targets %s from remote %r first",
         ", ".join(path.name for path in missing),
+        PREPARED_DVC_TARGETS,
         remote,
     )
     try:
-        download_data(repo_root, remote=remote, targets=[str(prepared_dir)])
+        pull_dvc_data(repo_root, remote=remote, targets=PREPARED_DVC_TARGETS)
     except Exception:
         logger.warning(
-            "Could not pull prepared data from remote %r; continuing fallback.",
+            "Could not pull prepared data from remote %r; continuing with local repro.",
             remote,
         )
 
-    if all(path.exists() for path in dvc_required):
-        try:
-            download_prepared_http_artifacts(prepared_dir)
-        except Exception as exc:
-            logger.warning("Could not download prepared JSON artifacts from VPS: %s", exc)
-
     missing = [path for path in required if not path.exists()]
     if not missing:
-        logger.info("Prepared data restored from DVC/VPS remotes")
+        logger.info("Prepared data restored from MinIO DVC remote")
         return
 
     logger.info(
@@ -181,6 +142,11 @@ def ensure_prepared_data(
     )
     with DvcRepo(str(Path(repo_root).resolve())) as repo:
         repo.reproduce(targets=["prepare", "splits"])
-        logger.info("Caching prepared data in DVC remote %r", remote)
-        repo.push(targets=["prepare", "splits"], remote=remote)
+        if _data_dvc_push_enabled(push_to_dvc):
+            logger.info("Caching prepared data in DVC remote %r", remote)
+            repo.push(targets=["prepare", "splits"], remote=remote)
+        else:
+            logger.info(
+                "Prepared data reproduced locally; skipping DVC push because data remote writes are disabled"
+            )
     logger.info("dvc repro complete; prepared data is ready")
